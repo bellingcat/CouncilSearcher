@@ -1,0 +1,5 @@
+requests
+xmltodict
+tqdm
+flask
+flask-cors
