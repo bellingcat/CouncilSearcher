@@ -7,9 +7,62 @@ from tqdm import tqdm
 import xmltodict
 import re
 import sqlite3
+from bs4 import BeautifulSoup
 
-transcript_url = "https://cl-assets.public-i.tv/birmingham/subtitles/birmingham_{uid}_en_GB.vtt"
-rss_url = "https://birmingham.public-i.tv/core/data/18549/archived/1/agenda/1"
+authorities = [
+    "birmingham",
+    "wolverhampton",
+    "wandsworth",
+    "towerhamlets",
+    "kingston",
+    "eastlothian",
+    "guildford",
+    "surreycc",
+    "centralbedfordshire",
+    "lewisham",
+    "brent",
+    "westsussex",
+    "tandridge",
+    "richmond",
+    "royalgreenwich",
+    "buckinghamshire",
+    "gloucestershire",
+    "wealden",
+    "stalbans",
+    "elmbridge",
+    "bexley",
+    "bolton",
+    "tewkesbury",
+    "wirral",
+    "solihull",
+    "folkestone-hythe",
+    "eastsussex",
+    "leicester",
+    "calderdale",
+    "southkesteven"
+    ]
+
+
+db_path = f"./data/council_meetings.db"
+
+def resolve_urls_for_authority(authority):
+    # use the magic_rss page to get the authority id (termed ds_id in the page)
+    magic_rss = f"https://{authority}.public-i.tv/core/portal/magic_rss"
+    print(f"Getting magic RSS feed for authority {authority}: {magic_rss}")
+    response = requests.get(magic_rss)
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch magic RSS feed: {response.status_code}")
+
+    # Use BeautifulSoup to parse the HTML and extract the ds_id
+    soup = BeautifulSoup(response.content, 'html.parser')
+    ds_id_input = soup.find('input', {'name': 'ds_id'})
+    authority_id = ds_id_input['value'] 
+    print(f"Getting data for authority {authority} with id {authority_id}")
+
+    # Construct urls for transcripts and database
+    transcript_url = f"https://cl-assets.public-i.tv/{authority}/subtitles/{authority}_" + "{uid}_en_GB.vtt"
+    rss_url = f"https://{authority}.public-i.tv/core/data/{authority_id}/archived/1/agenda/1"
+    return transcript_url, rss_url
 
 def get_rss_feed(url):
     """Fetch the RSS feed from the given URL and return the parsed data."""
@@ -23,7 +76,6 @@ def get_transcript(url):
     """Fetch the transcript from the given URL and return the parsed data."""
     response = requests.get(url)
     if response.status_code != 200:
-        print(f"Failed to fetch transcript at {url}: {response.status_code}")
         return None
 
     return response.text
@@ -57,11 +109,16 @@ def parse_item_from_public_i(full_item):
     item['tags'] = full_item.get('pi:tags')
     item['date'] = full_item.get('pi:liveDate')
     item['link'] = full_item.get('guid')
+
+    agenda_items = (full_item.get('pi:agenda', {}) or {}).get('pi:agenda_item', [])
+    if isinstance(agenda_items, dict):
+        agenda_items = [agenda_items]
+        
     item['agenda'] = [
             {'id': agenda_item.get('pi:agenda_id'),
              'text': agenda_item.get('pi:agenda_text'),
              'time': agenda_item.get('pi:agenda_time'),
-            } for agenda_item in (full_item.get('pi:agenda', {}) or {}).get('pi:agenda_item', [{}])
+            } for agenda_item in agenda_items
          ]
     item['uid'] = full_item.get('pi:activity')
     if item['uid'] != item['link'].split('/')[-1]:
@@ -76,114 +133,170 @@ def parse_item_from_public_i(full_item):
 
     return item
 
+def create_database(db_path):
+    conn = sqlite3.connect(db_path)
 
-## Get the list of meetings from the RSS feed
-feed = get_rss_feed(rss_url)
-
-## For every meeting in the feed, get the transcript and parse it
-with ThreadPoolExecutor() as executor:
-    results = list(tqdm(executor.map(parse_item_from_public_i, feed['rss']['channel']['item']), total=len(feed['rss']['channel']['item'])))
-
-directory = {item['uid']: item for item in results}
-
-## Load the data into a SQLite database
-conn = sqlite3.connect('./data/birmingham_council_meetings.db')
-
-# Create tables
-with conn:
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS meetings (
-            uid TEXT PRIMARY KEY,
-            title TEXT,
-            description TEXT,
-            date TEXT,
-            link TEXT
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS transcripts (
-            uid TEXT,
-            transcript TEXT,
-            title TEXT,
-            description TEXT,
-            start_time TEXT,
-            end_time TEXT,
-            PRIMARY KEY (uid, start_time, end_time),
-            FOREIGN KEY (uid) REFERENCES meetings(uid)
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS agenda (
-            uid TEXT,
-            agenda_id TEXT,
-            agenda_text TEXT,
-            agenda_time TEXT,
-            PRIMARY KEY (uid, agenda_id),
-            FOREIGN KEY (uid) REFERENCES meetings(uid)
-        )
-    ''')
-    conn.execute('''
-        CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
-            uid,
-            transcript,
-            tokenize='porter'
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS offsets (
-            uid TEXT,
-            offset INTEGER,
-            start_time TEXT,
-            start_time_seconds INTEGER,
-            PRIMARY KEY (uid, offset),
-            FOREIGN KEY (uid) REFERENCES meetings(uid)
-        )
-    ''')                 
-
-# Insert data into tables
-with conn:
-    for uid, item in directory.items():
+    # Create tables
+    with conn:
         conn.execute('''
-            INSERT OR IGNORE INTO meetings (uid, title, description, date, link)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (uid, item['title'], item['description'], item['date'], item['link']))
-        
-        if item['parsed_transcript']:
-            for start_time, end_time, text in item['parsed_transcript']:
+            CREATE TABLE IF NOT EXISTS authorities (
+                id TEXT PRIMARY KEY
+            )
+        ''')
+
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS meetings (
+                uid TEXT PRIMARY KEY,
+                authority TEXT,
+                title TEXT,
+                description TEXT,
+                date TEXT,
+                link TEXT,
+                FOREIGN KEY (authority) REFERENCES authorities(id)
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS transcripts (
+                uid TEXT,
+                transcript TEXT,
+                title TEXT,
+                description TEXT,
+                start_time TEXT,
+                end_time TEXT,
+                PRIMARY KEY (uid, start_time, end_time),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS agenda (
+                uid TEXT,
+                agenda_id TEXT,
+                agenda_text TEXT,
+                agenda_time TEXT,
+                PRIMARY KEY (uid, agenda_id),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')
+        conn.execute('''
+            CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
+                uid,
+                transcript,
+                tokenize='porter'
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS offsets (
+                uid TEXT,
+                offset INTEGER,
+                start_time TEXT,
+                start_time_seconds INTEGER,
+                PRIMARY KEY (uid, offset),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')     
+
+def insert_data(directory):
+    ## Load the data into a SQLite database
+    conn = sqlite3.connect(db_path)            
+
+    # Insert data into tables
+    with conn:
+        # Insert authority data
+        conn.execute('''
+            INSERT OR IGNORE INTO authorities (id)
+            VALUES (?)
+        ''', (authority,))
+        for uid, item in directory.items():
+            conn.execute('''
+                INSERT OR IGNORE INTO meetings (uid, authority, title, description, date, link)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (uid, authority, item['title'], item['description'], item['date'], item['link']))
+            
+            if item['parsed_transcript']:
+                for start_time, end_time, text in item['parsed_transcript']:
+                    conn.execute('''
+                        INSERT OR IGNORE INTO transcripts (uid, transcript, title, description, start_time, end_time)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (uid, text, item['title'], item['description'], start_time, end_time))
+                
+            for agenda_item in item['agenda']:
                 conn.execute('''
-                    INSERT INTO transcripts (uid, transcript, title, description, start_time, end_time)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (uid, text, item['title'], item['description'], start_time, end_time))
-            
-        for agenda_item in item['agenda']:
+                    INSERT OR IGNORE INTO agenda (uid, agenda_id, agenda_text, agenda_time)
+                    VALUES (?, ?, ?, ?)
+                ''', (uid, agenda_item['id'], agenda_item['text'], agenda_item['time']))
+
+            if item['parsed_transcript'] == None:
+                continue
+                
+            full_transcript = " ".join(
+                text for _, _, text in item['parsed_transcript'] 
+            )
+
+            offset = 0
+            for start_time, end_time, text in item['parsed_transcript']:
+                # Convert the start time from hh:mm:ss.sss to seconds
+                start_time_seconds = sum(
+                    float(x) * 60 ** i for i, x in enumerate(reversed(start_time.split(":")))
+                )//1
+
+                conn.execute('''
+                    INSERT OR IGNORE INTO offsets (uid, offset, start_time, start_time_seconds)
+                    VALUES (?, ?, ?, ?)
+                ''', (uid, offset, start_time, start_time_seconds))
+                offset += len(text) + 1  # Add 1 for the space between words
+
+            # Only insert the full transcript if it doesn't already exist 
+            # As virtual table doesn't support UNIQUE constraint
             conn.execute('''
-                INSERT OR IGNORE INTO agenda (uid, agenda_id, agenda_text, agenda_time)
-                VALUES (?, ?, ?, ?)
-            ''', (uid, agenda_item['id'], agenda_item['text'], agenda_item['time']))
+                INSERT INTO transcripts_fts (uid, transcript)
+                SELECT ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM transcripts_fts WHERE uid = ?
+                )
+            ''', (uid, full_transcript, uid))
 
-        if item['parsed_transcript'] == None:
-            continue
-            
-        full_transcript = " ".join(
-            text for _, _, text in item['parsed_transcript'] 
-        )
+def get_transcript_and_meeting_counts(authority):
+    ## Load the data into a SQLite database
+    conn = sqlite3.connect(db_path)    
 
-        offset = 0
-        for start_time, end_time, text in item['parsed_transcript']:
-            # Convert the start time from hh:mm:ss.sss to seconds
-            start_time_seconds = sum(
-                float(x) * 60 ** i for i, x in enumerate(reversed(start_time.split(":")))
-            )//1
+    with conn:
+        # Compare number of transcripts_fts and meetings
+        cursor = conn.execute('''
+            SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
+                SELECT uid FROM meetings WHERE authority = ?
+            )
+        ''', (authority,))
+        
+        transcripts_count = cursor.fetchone()[0]
 
-            conn.execute('''
-                INSERT INTO offsets (uid, offset, start_time, start_time_seconds)
-                VALUES (?, ?, ?, ?)
-            ''', (uid, offset, start_time, start_time_seconds))
-            offset += len(text) + 1  # Add 1 for the space between words
+        cursor = conn.execute('''
+            SELECT COUNT(*) FROM meetings WHERE authority = ?
+        ''', (authority,))
 
-        conn.execute('''
-            INSERT INTO transcripts_fts (uid, transcript)
-            VALUES (?, ?)
-        ''', (uid, full_transcript))
+        meetings_count = cursor.fetchone()[0]
 
-conn.close()
+    return transcripts_count, meetings_count
+
+## Create the database if it doesn't exist
+create_database(db_path)
+
+for authority in tqdm(authorities):
+
+    ## Resolve the URLs for the authority
+    transcript_url, rss_url = resolve_urls_for_authority(authority)
+
+    ## Get the list of meetings from the RSS feed
+    feed = get_rss_feed(rss_url)
+
+    ## For every meeting in the feed, get the transcript and parse it
+    with ThreadPoolExecutor() as executor:
+        results = list(tqdm(executor.map(parse_item_from_public_i, feed['rss']['channel']['item']), total=len(feed['rss']['channel']['item'])))
+
+    directory = {item['uid']: item for item in results}
+
+    ## Insert the data into the database
+    insert_data(directory)
+
+    ## Get the counts of transcripts and meetings
+    transcripts_count, meetings_count = get_transcript_and_meeting_counts(authority)
+    print(f"{authority} has transcripts for {transcripts_count} meetings out of {meetings_count}.")
