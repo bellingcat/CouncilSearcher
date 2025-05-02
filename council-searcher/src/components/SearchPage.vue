@@ -83,7 +83,7 @@
                     label="Search"
                     outlined
                     clearable
-                    class="mt-2 mb-2"
+                    class="mt-2 mb-0"
                     @keyup.enter="performSearch"
                     @click:clear="results = []"
                 >
@@ -98,8 +98,22 @@
                     </template>
                 </v-text-field>
             </v-row>
-            <v-row v-if="results.length" class="mt-4">
-                <template v-for="result in results" :key="result.link">
+            <v-row class="my-0 py-0">
+                <v-col class="ma-0 pa-0" cols="auto">
+                    <v-select
+                        v-model="sortOption"
+                        :items="sortOptions"
+                        label="Sort by"
+                        outlined
+                        class="mt-2 mb-2"
+                        @change="sortResults"
+                        hide-details="true"
+                        density="compact"
+                    />
+                </v-col>
+            </v-row>
+            <v-row v-if="results.length" class="mt-2">
+                <template v-for="result in sortedResults" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
             </v-row>
@@ -108,13 +122,30 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import axios from "axios";
 
 const searchQuery = ref("");
 const results = ref([]);
 const selectedAuthorities = ref([]);
 const authorities = ref({});
+const sortOption = ref("Best Match");
+const sortOptions = [
+    "Best Match",
+    "Date (newest first)",
+    "Date (oldest first)",
+];
+
+const sortedResults = computed(() => {
+    if (sortOption.value === "Best Match") {
+        return [...results.value].sort((a, b) => b.rank - a.rank);
+    } else if (sortOption.value === "Date (newest first)") {
+        return [...results.value].sort((a, b) => b.unixtime - a.unixtime);
+    } else if (sortOption.value === "Date (oldest first)") {
+        return [...results.value].sort((a, b) => a.unixtime - b.unixtime);
+    }
+    return results.value;
+});
 
 const fetchAuthorities = async () => {
     try {
@@ -142,6 +173,11 @@ const performSearch = async () => {
     } catch (error) {
         console.error("Error fetching search results:", error);
     }
+};
+
+const sortResults = () => {
+    // Trigger reactivity for sorting
+    sortedResults.value;
 };
 
 fetchAuthorities();
