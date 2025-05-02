@@ -11,36 +11,36 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 authorities = [
+    "bexley",
     "birmingham",
-    "wolverhampton",
-    "wandsworth",
-    "towerhamlets",
-    "kingston",
-    "eastlothian",
-    "guildford",
-    "surreycc",
-    "centralbedfordshire",
-    "lewisham",
+    "bolton",
     "brent",
-    "westsussex",
-    "tandridge",
+    "buckinghamshire",
+    "calderdale",
+    "centralbedfordshire",
+    "eastlothian",
+    "eastsussex",
+    "elmbridge",
+    "folkestone-hythe",
+    "gloucestershire",
+    "guildford",
+    "kingston",
+    "leicester",
+    "lewisham",
     "richmond",
     "royalgreenwich",
-    "buckinghamshire",
-    "gloucestershire",
-    "wealden",
-    "stalbans",
-    "elmbridge",
-    "bexley",
-    "bolton",
-    "tewkesbury",
-    "wirral",
     "solihull",
-    "folkestone-hythe",
-    "eastsussex",
-    "leicester",
-    "calderdale",
-    "southkesteven"
+    "southkesteven",
+    "stalbans",
+    "surreycc",
+    "tandridge",
+    "tewkesbury",
+    "towerhamlets",
+    "wandsworth",
+    "wealden",
+    "westsussex",
+    "wirral",
+    "wolverhampton"
     ]
 
 
@@ -296,8 +296,13 @@ for authority in tqdm(authorities):
     feed = get_rss_feed(rss_url)
 
     ## For every meeting in the feed, get the transcript and parse it
+    items = feed['rss']['channel'].get('item', [])
+    if not items:
+        print(f"No items found in RSS feed for authority {authority}. Skipping...")
+        continue
+
     with ThreadPoolExecutor() as executor:
-        results = list(tqdm(executor.map(parse_item_from_public_i, feed['rss']['channel']['item']), total=len(feed['rss']['channel']['item'])))
+        results = list(tqdm(executor.map(parse_item_from_public_i, items), total=len(items)))
 
     directory = {item['uid']: item for item in results}
 
