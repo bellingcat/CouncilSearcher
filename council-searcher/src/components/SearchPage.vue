@@ -45,48 +45,66 @@
                 </v-card>
             </v-row>
             <v-row>
-                <v-card
-                    class="px-4 py-2 mt-4 mb-2"
-                    title="Filter by Authority"
-                    color="surface"
-                >
-                    <p class="text">
-                        Select the authorities of interest. The brackets
-                        indicate the number of transcripts available.
-                    </p>
-                    <v-text-field
-                        v-model="authorityFilter"
-                        label="Filter Authorities"
-                        outlined
-                        clearable
-                        class="mb-0 mt-2"
-                        density="compact"
-                    />
-                    <v-container
-                        class="mt-0"
-                        fluid
-                        style="max-height: 100px; overflow-y: auto"
+                <v-col cols="12">
+                    <v-card
+                        class="px-4 py-2 mt-4 mb-2"
+                        title="Filter by Authority"
+                        color="surface"
                     >
-                        <v-row>
-                            <v-col
-                                v-for="(
-                                    count, authority
-                                ) in filteredAuthorities"
-                                :key="authority"
-                                cols="auto"
-                                class="px-1 py-0"
+                        <p class="text" v-if="loadingAuthorities">
+                            Loading Authorities
+                            <v-progress-circular
+                                indeterminate
+                                color="primary"
+                                class="ml-2"
+                            />
+                        </p>
+                        <p
+                            class="text error"
+                            v-else-if="errorLoadingAuthorities"
+                        >
+                            Error loading authorities. Please try again later.
+                        </p>
+                        <template v-else>
+                            <p class="text">
+                                Select the authorities of interest. The brackets
+                                indicate the number of transcripts available.
+                            </p>
+                            <v-text-field
+                                v-model="authorityFilter"
+                                label="Filter Authorities"
+                                outlined
+                                clearable
+                                class="mb-0 mt-2"
+                                density="compact"
+                            />
+                            <v-container
+                                class="mt-0"
+                                fluid
+                                style="max-height: 100px; overflow-y: auto"
                             >
-                                <v-checkbox
-                                    v-model="selectedAuthorities"
-                                    density="compact"
-                                    :label="`${authority} (${count})`"
-                                    :value="authority"
-                                    hide-details="true"
-                                />
-                            </v-col>
-                        </v-row>
-                    </v-container>
-                </v-card>
+                                <v-row>
+                                    <v-col
+                                        v-for="(
+                                            count, authority
+                                        ) in filteredAuthorities"
+                                        :key="authority"
+                                        cols="auto"
+                                        class="px-1 py-0"
+                                    >
+                                        <v-checkbox
+                                            v-model="selectedAuthorities"
+                                            density="compact"
+                                            :label="`${authority} (${count})`"
+                                            :value="authority"
+                                            hide-details="true"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </v-container>
+                        </template>
+                    </v-card>
+                </v-col>
             </v-row>
             <v-row>
                 <v-text-field
@@ -186,6 +204,8 @@ function formatAsIso(date) {
 }
 
 const authorityFilter = ref("");
+const loadingAuthorities = ref(true);
+const errorLoadingAuthorities = ref(false);
 
 const filteredAuthorities = computed(() => {
     if (!authorityFilter.value) {
@@ -215,9 +235,15 @@ const fetchAuthorities = async () => {
         const response = await axios.get(
             "http://127.0.0.1:5000/transcript_counts_by_authority"
         );
+        if (response.status !== 200) {
+            errorLoadingAuthorities.value = true;
+        }
         authorities.value = response.data;
     } catch (error) {
         console.error("Error fetching authorities:", error);
+        errorLoadingAuthorities.value = true;
+    } finally {
+        loadingAuthorities.value = false;
     }
 };
 
