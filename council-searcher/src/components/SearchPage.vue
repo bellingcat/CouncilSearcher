@@ -36,27 +36,54 @@
             </v-row>
             <v-row>
                 <v-card
-                    class="pa-4"
+                    class="px-4 py-2 mb-2"
                     title="What is this demo all about?"
                     color="surface-variant"
                 >
                     <p>
                         This is a demo of a local democracy reporting tool that
                         enables local researchers to search auto-generated
-                        transcripts of Council meetings. This demo covers the
-                        225 council meetings streamed between 07/05/2024 and
-                        30/04/2025 for Birmingham City Council.
+                        transcripts of Council meetings.
                     </p>
                 </v-card>
             </v-row>
-
+            <v-row>
+                <v-card
+                    class="px-4 py-2 mt-4 mb-2"
+                    title="Filter by Authority"
+                    color="surface"
+                >
+                    <p class="text-caption">
+                        Select the authorities of interest. The brackets
+                        indicates the number of transcripts available.
+                    </p>
+                    <v-container fluid>
+                        <v-row>
+                            <v-col
+                                v-for="(count, authority) in authorities"
+                                :key="authority"
+                                cols="auto"
+                                class="px-1 py-0"
+                            >
+                                <v-checkbox
+                                    v-model="selectedAuthorities"
+                                    density="compact"
+                                    :label="`${authority} (${count})`"
+                                    :value="authority"
+                                    hide-details="true"
+                                />
+                            </v-col>
+                        </v-row>
+                    </v-container>
+                </v-card>
+            </v-row>
             <v-row>
                 <v-text-field
                     v-model="searchQuery"
                     label="Search"
                     outlined
                     clearable
-                    class="mt-4"
+                    class="mt-2 mb-2"
                     @keyup.enter="performSearch"
                     @click:clear="results = []"
                 >
@@ -86,17 +113,36 @@ import axios from "axios";
 
 const searchQuery = ref("");
 const results = ref([]);
+const selectedAuthorities = ref([]);
+const authorities = ref({});
+
+const fetchAuthorities = async () => {
+    try {
+        const response = await axios.get(
+            "http://127.0.0.1:5000/transcript_counts_by_authority"
+        );
+        authorities.value = response.data;
+    } catch (error) {
+        console.error("Error fetching authorities:", error);
+    }
+};
 
 const performSearch = async () => {
     try {
+        const authorityParams = selectedAuthorities.value
+            .map((authority) => `authority=${encodeURIComponent(authority)}`)
+            .join("&");
+        const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
+            authorityParams ? `&${authorityParams}` : ""
+        }`;
         const response = await axios.get(
-            `http://127.0.0.1:5000/search?query=${encodeURIComponent(
-                searchQuery.value
-            )}`
+            `http://127.0.0.1:5000/search?${queryParams}`
         );
         results.value = response.data;
     } catch (error) {
         console.error("Error fetching search results:", error);
     }
 };
+
+fetchAuthorities();
 </script>
