@@ -66,15 +66,16 @@ def search_meetings():
 
         # Fetch the link from the meetings table matching the uid
         meeting_cursor = conn.execute('''
-            SELECT title, date, link FROM meetings
+            SELECT title, datetime, unixtime, link FROM meetings
             WHERE uid = ?
         ''', (uid,))
-        meeting_title, meeting_date, meeting_link = meeting_cursor.fetchone()
+        meeting_title, datetime, unixtime, meeting_link = meeting_cursor.fetchone()
         meeting_link = f"{meeting_link}/start_time/{1000*start_time_seconds}"
 
         formatted_results.append({
             'title': meeting_title,
-            'date': meeting_date,
+            'datetime': datetime,
+            'unixtime': unixtime,
             'snippet': snippet,
             'start_time': start_time,
             'rank': rank,

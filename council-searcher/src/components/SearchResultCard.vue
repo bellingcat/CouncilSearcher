@@ -6,7 +6,7 @@
             v-html="highlightedSnippet"
         ></v-card-text>
         <v-card-subtitle class="text-left">
-            {{ result.date }} - {{ result.start_time }}
+            {{ result.datetime }} - {{ result.start_time }}
         </v-card-subtitle>
         <v-card-actions>
             <v-btn

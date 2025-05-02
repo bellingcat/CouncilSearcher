@@ -8,6 +8,7 @@ import xmltodict
 import re
 import sqlite3
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 authorities = [
     "birmingham",
@@ -107,7 +108,12 @@ def parse_item_from_public_i(full_item):
     item['title'] = full_item.get('title')
     item['description'] = full_item.get('description')
     item['tags'] = full_item.get('pi:tags')
-    item['date'] = full_item.get('pi:liveDate')
+    item['date'] = full_item.get('pi:liveDate') # Format is Wed, 30 Apr 2025 19:30:00 +0100
+
+    # Convert the date to a Unix timestamp
+    item['unixtime'] = int(datetime.strptime(item['date'], "%a, %d %b %Y %H:%M:%S %z").timestamp()) if item['date'] else None
+    item['datetime'] = datetime.strptime(item['date'], "%a, %d %b %Y %H:%M:%S %z").isoformat(" ") if item['date'] else None
+
     item['link'] = full_item.get('guid')
 
     agenda_items = (full_item.get('pi:agenda', {}) or {}).get('pi:agenda_item', [])
@@ -150,7 +156,8 @@ def create_database(db_path):
                 authority TEXT,
                 title TEXT,
                 description TEXT,
-                date TEXT,
+                datetime TEXT,
+                unixtime INTEGER,
                 link TEXT,
                 FOREIGN KEY (authority) REFERENCES authorities(id)
             )
@@ -208,9 +215,9 @@ def insert_data(directory):
         ''', (authority,))
         for uid, item in directory.items():
             conn.execute('''
-                INSERT OR IGNORE INTO meetings (uid, authority, title, description, date, link)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (uid, authority, item['title'], item['description'], item['date'], item['link']))
+                INSERT OR IGNORE INTO meetings (uid, authority, title, description, datetime, unixtime, link)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (uid, authority, item['title'], item['description'], item['datetime'], item['unixtime'], item['link']))
             
             if item['parsed_transcript']:
                 for start_time, end_time, text in item['parsed_transcript']:
