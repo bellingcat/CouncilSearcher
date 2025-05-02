@@ -12,7 +12,7 @@
                         src="@/assets/bellingcat.svg"
                     />
                     <h1 class="mb-6 py-2 font-weight-bold">
-                        Council Meeting Search Demo
+                        Council Meeting Transcript Search
                     </h1>
                     <a href="https://www.bellingcat.com">
                         <img
@@ -35,15 +35,12 @@
                 </v-col>
             </v-row>
             <v-row>
-                <v-card
-                    class="px-4 py-2 mb-2"
-                    title="What is this demo all about?"
-                    color="surface-variant"
-                >
+                <v-card class="px-4 py-2 mb-2" color="surface-variant">
                     <p>
-                        This is a demo of a local democracy reporting tool that
-                        enables local researchers to search auto-generated
-                        transcripts of Council meetings.
+                        This is a local democracy reporting tool that enables
+                        researchers to search auto-generated transcripts of
+                        Council meetings for different authorities across the UK
+                        and Ireland.
                     </p>
                 </v-card>
             </v-row>
@@ -53,14 +50,28 @@
                     title="Filter by Authority"
                     color="surface"
                 >
-                    <p class="text-caption">
+                    <p class="text">
                         Select the authorities of interest. The brackets
-                        indicates the number of transcripts available.
+                        indicate the number of transcripts available.
                     </p>
-                    <v-container fluid>
+                    <v-text-field
+                        v-model="authorityFilter"
+                        label="Filter Authorities"
+                        outlined
+                        clearable
+                        class="mb-0 mt-2"
+                        density="compact"
+                    />
+                    <v-container
+                        class="mt-0"
+                        fluid
+                        style="max-height: 100px; overflow-y: auto"
+                    >
                         <v-row>
                             <v-col
-                                v-for="(count, authority) in authorities"
+                                v-for="(
+                                    count, authority
+                                ) in filteredAuthorities"
                                 :key="authority"
                                 cols="auto"
                                 class="px-1 py-0"
@@ -173,6 +184,20 @@ const adapter = useDate();
 function formatAsIso(date) {
     return adapter.toISO(date);
 }
+
+const authorityFilter = ref("");
+
+const filteredAuthorities = computed(() => {
+    if (!authorityFilter.value) {
+        return authorities.value;
+    }
+    const filter = authorityFilter.value.toLowerCase();
+    return Object.fromEntries(
+        Object.entries(authorities.value).filter(([key]) =>
+            key.toLowerCase().includes(filter)
+        )
+    );
+});
 
 const sortedResults = computed(() => {
     if (sortOption.value === "Best Match") {
