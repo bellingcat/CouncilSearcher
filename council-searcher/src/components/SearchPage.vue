@@ -98,6 +98,33 @@
                     </template>
                 </v-text-field>
             </v-row>
+            <v-row class="mt-0">
+                <v-col cols="12" md="6">
+                    <v-date-input
+                        v-model="startDate"
+                        label="Start Date"
+                        outlined
+                        clearable="true"
+                        density="compact"
+                        :display-format="formatAsIso"
+                        placeholder="yyyy-mm-dd"
+                        @update:model-value="performSearch"
+                    />
+                </v-col>
+                <v-col cols="12" md="6">
+                    <v-date-input
+                        v-model="endDate"
+                        label="End Date"
+                        outlined
+                        clearable="true"
+                        :min="startDate"
+                        density="compact"
+                        :display-format="formatAsIso"
+                        placeholder="yyyy-mm-dd"
+                        @update:model-value="performSearch"
+                    />
+                </v-col>
+            </v-row>
             <v-row class="my-0 py-0">
                 <v-col class="ma-0 pa-0" cols="auto">
                     <v-select
@@ -123,6 +150,7 @@
 
 <script setup>
 import { ref, computed } from "vue";
+import { useDate } from "vuetify";
 import axios from "axios";
 
 const searchQuery = ref("");
@@ -135,6 +163,12 @@ const sortOptions = [
     "Date (newest first)",
     "Date (oldest first)",
 ];
+const startDate = ref(null);
+const endDate = ref(null);
+const adapter = useDate();
+function formatAsIso(date) {
+    return adapter.toISO(date);
+}
 
 const sortedResults = computed(() => {
     if (sortOption.value === "Best Match") {
@@ -163,9 +197,21 @@ const performSearch = async () => {
         const authorityParams = selectedAuthorities.value
             .map((authority) => `authority=${encodeURIComponent(authority)}`)
             .join("&");
+        const dateParams = [
+            startDate.value
+                ? `startdate=${encodeURIComponent(
+                      formatAsIso(startDate.value)
+                  )}`
+                : "",
+            endDate.value
+                ? `enddate=${encodeURIComponent(formatAsIso(endDate.value))}`
+                : "",
+        ]
+            .filter(Boolean)
+            .join("&");
         const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
             authorityParams ? `&${authorityParams}` : ""
-        }`;
+        }${dateParams ? `&${dateParams}` : ""}`;
         const response = await axios.get(
             `http://127.0.0.1:5000/search?${queryParams}`
         );

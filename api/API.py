@@ -21,6 +21,9 @@ def search_meetings():
     """Endpoint to search meeting transcript."""
     search_query = request.args.get('query', '')
     authority = request.args.getlist('authority')  # Get authority as a list of names
+    startdate = request.args.get('startdate')  # Get start date
+    enddate = request.args.get('enddate')  # Get end date
+
     if not search_query:
         return jsonify({"error": "Query parameter is required"}), 400
     
@@ -42,6 +45,23 @@ def search_meetings():
             )
         '''.format(','.join('?' for _ in authority))
         params.extend(authority)
+
+    # Filter by startdate and enddate if provided
+    if startdate:
+        query += '''
+            AND uid IN (
+                SELECT uid FROM meetings WHERE datetime >= ?
+            )
+        '''
+        params.append(startdate)
+
+    if enddate:
+        query += '''
+            AND uid IN (
+                SELECT uid FROM meetings WHERE datetime <= ?
+            )
+        '''
+        params.append(enddate)
 
     query += ' ORDER BY bm25(transcripts_fts)'
 
