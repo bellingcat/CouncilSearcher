@@ -125,7 +125,11 @@
                     />
                 </v-col>
             </v-row>
-            <v-row class="my-0 py-0">
+            <v-row v-if="results.length" class="my-0 py-0">
+                <v-col class="ma-0 pa-0" cols="auto">
+                    <div class="text-h4">Search Results</div>
+                </v-col>
+                <v-spacer />
                 <v-col class="ma-0 pa-0" cols="auto">
                     <v-select
                         v-model="sortOption"
