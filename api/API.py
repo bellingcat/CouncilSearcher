@@ -4,7 +4,7 @@ import sqlite3
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Explicitly allow all origins
-DB_PATH = '../data/birmingham_council_meetings.db'
+DB_PATH = '../data/council_meetings.db'
 
 def query_db(query, args=(), one=False):
     """Helper function to query the SQLite database."""
@@ -20,6 +20,7 @@ def query_db(query, args=(), one=False):
 def search_meetings():
     """Endpoint to search meeting transcript."""
     search_query = request.args.get('query', '')
+    authority = request.args.getlist('authority')  # Get authority as a list of names
     if not search_query:
         return jsonify({"error": "Query parameter is required"}), 400
     
@@ -30,10 +31,21 @@ def search_meetings():
         SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
         FROM transcripts_fts
         WHERE transcript MATCH ?
-        ORDER BY bm25(transcripts_fts)
     '''
+    params = [search_query]
 
-    results = conn.execute(query, (search_query,)).fetchall()
+    # Filter by authority if provided
+    if authority:
+        query += '''
+            AND uid IN (
+                SELECT uid FROM meetings WHERE authority IN ({})
+            )
+        '''.format(','.join('?' for _ in authority))
+        params.extend(authority)
+
+    query += ' ORDER BY bm25(transcripts_fts)'
+
+    results = conn.execute(query, params).fetchall()
 
     formatted_results = []
     for result in results:
@@ -72,6 +84,28 @@ def search_meetings():
     conn.close()
 
     return jsonify(formatted_results)
+
+@app.route('/transcript_counts_by_authority', methods=['GET'])
+def available_authorities():
+    """Endpoint to get available authorities."""
+    conn = sqlite3.connect(DB_PATH)
+    # Get the authorities from the authorities table and get counts for that authorty from the transcripts_fts table
+    #  SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
+    #             SELECT uid FROM meetings WHERE authority = ?
+    #         )
+    cursor = conn.execute('''
+        SELECT authority, COUNT(*) as transcript_count
+        FROM authorities
+        JOIN meetings ON authorities.id = meetings.authority
+        WHERE meetings.uid IN (
+            SELECT uid FROM transcripts_fts
+        )
+        GROUP BY authority
+    ''')
+
+    authorities = {row[0] : row[1] for row in cursor.fetchall()}
+    conn.close()
+    return jsonify(authorities)
 
 if __name__ == '__main__':
     app.run(debug=True)
