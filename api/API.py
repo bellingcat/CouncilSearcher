@@ -1,10 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # Added import for CORS
+from flask_caching import Cache  # Import Flask-Caching
 import sqlite3
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Explicitly allow all origins
 DB_PATH = '../data/council_meetings.db'
+
+# Configure caching
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 3600})
 
 def query_db(query, args=(), one=False):
     """Helper function to query the SQLite database."""
@@ -107,6 +111,7 @@ def search_meetings():
     return jsonify(formatted_results)
 
 @app.route('/transcript_counts_by_authority', methods=['GET'])
+@cache.cached()  # Cache the result of this endpoint
 def available_authorities():
     """Endpoint to get available authorities."""
     conn = sqlite3.connect(DB_PATH)
