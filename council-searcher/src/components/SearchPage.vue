@@ -42,6 +42,16 @@
                         Council meetings for different authorities across the UK
                         and Ireland.
                     </p>
+                    <br />
+                    <p>
+                        <a
+                            class="link"
+                            href="https://docs.google.com/forms/d/e/1FAIpQLSeiLbiwJ-V5XY-2PNllASHtQgFpkO2fdhSHVBigqxNKm6JFQw/viewform?usp=dialog"
+                        >
+                            Sign up here to stay updated (and leave optional
+                            feedback)
+                        </a>
+                    </p>
                 </v-card>
             </v-row>
             <v-row>
