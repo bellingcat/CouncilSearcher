@@ -1,49 +1,62 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS  # Added import for CORS
-from flask_caching import Cache  # Import Flask-Caching
+from typing import Union
+
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 import sqlite3
 
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Explicitly allow all origins
+app = FastAPI()
+
+# Allow CORS for all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+# Database path
 DB_PATH = '../data/council_meetings.db'
 
-# Configure caching
-cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 3600})
 
-def query_db(query, args=(), one=False):
-    """Helper function to query the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.execute(query, args)
-    rv = cur.fetchall()
-    conn.close()
-    return (rv[0] if rv else None) if one else rv
+@app.get("/search")
+async def search_meetings(
+    query: str,
+    authority: Union[list[str], None] = Query(None),
+    startdate: Union[str, None] = None,
+    enddate: Union[str, None] = None
+) -> JSONResponse:
+    """
+    Endpoint to search meeting transcript.
+    
+    Parameters:
+    - query: The search phrase.
+    - authority: Optional; filter by authority name.
+    - startdate: Optional; filter by start date (YYYY-MM-DD).
+    - enddate: Optional; filter by end date (YYYY-MM-DD).
+    
+    Returns:
+    - JSON response with search results.
+    """
 
-@app.route('/search', methods=['GET'])
-def search_meetings():
-    """Endpoint to search meeting transcript."""
-    search_query = request.args.get('query', '')
-    authority = request.args.getlist('authority')  # Get authority as a list of names
-    startdate = request.args.get('startdate')  # Get start date
-    enddate = request.args.get('enddate')  # Get end date
-
-    if not search_query:
-        return jsonify({"error": "Query parameter is required"}), 400
+    if not query:
+        return JSONResponse(content={"error": "Query parameter is required"}, status_code=400)
     
     conn = sqlite3.connect(DB_PATH)
 
     # Search for the phrase in the transcripts using FTS
-    query = '''
+    query_string = '''
         SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
         FROM transcripts_fts
         WHERE transcript MATCH ?
     '''
-    params = [search_query]
+    params = [query]
 
     # Filter by authority if provided
     if authority:
-        query += '''
+        query_string += '''
             AND uid IN (
                 SELECT uid FROM meetings WHERE authority IN ({})
             )
@@ -52,7 +65,7 @@ def search_meetings():
 
     # Filter by startdate and enddate if provided
     if startdate:
-        query += '''
+        query_string += '''
             AND uid IN (
                 SELECT uid FROM meetings WHERE datetime >= ?
             )
@@ -60,17 +73,16 @@ def search_meetings():
         params.append(startdate)
 
     if enddate:
-        query += '''
+        query_string += '''
             AND uid IN (
                 SELECT uid FROM meetings WHERE datetime <= ?
             )
         '''
         params.append(enddate)
 
-    query += ' ORDER BY bm25(transcripts_fts)'
+    query_string += ' ORDER BY bm25(transcripts_fts)'
 
-    results = conn.execute(query, params).fetchall()
-
+    results = conn.execute(query_string, params).fetchall()
     formatted_results = []
     for result in results:
         # Calculate the start time from the offset
@@ -109,17 +121,14 @@ def search_meetings():
         
     conn.close()
 
-    return jsonify(formatted_results)
+    return JSONResponse(content=formatted_results)
 
-@app.route('/transcript_counts_by_authority', methods=['GET'])
-@cache.cached()  # Cache the result of this endpoint
-def available_authorities():
-    """Endpoint to get available authorities."""
+@app.get("/transcript_counts_by_authority")
+async def available_authorities() -> JSONResponse:
+    """
+    Endpoint to get available authorities and their transcript counts.
+    """
     conn = sqlite3.connect(DB_PATH)
-    # Get the authorities from the authorities table and get counts for that authorty from the transcripts_fts table
-    #  SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
-    #             SELECT uid FROM meetings WHERE authority = ?
-    #         )
     cursor = conn.execute('''
         SELECT authority, COUNT(*) as transcript_count
         FROM authorities
@@ -129,10 +138,6 @@ def available_authorities():
         )
         GROUP BY authority
     ''')
-
-    authorities = {row[0] : row[1] for row in cursor.fetchall()}
+    authorities = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
-    return jsonify(authorities)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return JSONResponse(content=authorities)
