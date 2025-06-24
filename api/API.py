@@ -44,8 +44,6 @@ async def search_meetings(
     if not query:
         return JSONResponse(content={"error": "Query parameter is required"}, status_code=400)
     
-    conn = sqlite3.connect(DB_PATH)
-
     # Search for the phrase in the transcripts using FTS
     query_string = '''
         SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
@@ -82,44 +80,44 @@ async def search_meetings(
 
     query_string += ' ORDER BY bm25(transcripts_fts)'
 
-    results = conn.execute(query_string, params).fetchall()
-    formatted_results = []
-    for result in results:
-        # Calculate the start time from the offset
-        uid, snippet, rank, transcript = result
-        # Use the matched snippet to find the offset in the full transcript
-        snippet_cleaned = snippet.replace('[', '').replace(']', '')
+    with sqlite3.connect(DB_PATH) as conn:
+        results = conn.execute(query_string, params).fetchall()
+    
+        formatted_results = []
+        for result in results:
+            # Calculate the start time from the offset
+            uid, snippet, rank, transcript = result
+            # Use the matched snippet to find the offset in the full transcript
+            snippet_cleaned = snippet.replace('[', '').replace(']', '')
 
-        offset = transcript.find(snippet_cleaned)
+            offset = transcript.find(snippet_cleaned)
 
-        # Get the largest offset less than the current offset
-        cursor = conn.execute('''
-            SELECT start_time, start_time_seconds FROM offsets
-            WHERE uid = ? AND offset <= ? ORDER BY offset DESC LIMIT 1
-        ''', (uid, offset))
+            # Get the largest offset less than the current offset
+            cursor = conn.execute('''
+                SELECT start_time, start_time_seconds FROM offsets
+                WHERE uid = ? AND offset <= ? ORDER BY offset DESC LIMIT 1
+            ''', (uid, offset))
 
-        start_time, start_time_seconds = cursor.fetchone()
+            start_time, start_time_seconds = cursor.fetchone()
 
-        # Fetch the link from the meetings table matching the uid
-        meeting_cursor = conn.execute('''
-            SELECT title, datetime, unixtime, link, authority FROM meetings
-            WHERE uid = ?
-        ''', (uid,))
-        meeting_title, datetime, unixtime, meeting_link, authority_result = meeting_cursor.fetchone()
-        meeting_link = f"{meeting_link}/start_time/{1000*start_time_seconds}"
+            # Fetch the link from the meetings table matching the uid
+            meeting_cursor = conn.execute('''
+                SELECT title, datetime, unixtime, link, authority FROM meetings
+                WHERE uid = ?
+            ''', (uid,))
+            meeting_title, datetime, unixtime, meeting_link, authority_result = meeting_cursor.fetchone()
+            meeting_link = f"{meeting_link}/start_time/{1000*start_time_seconds}"
 
-        formatted_results.append({
-            'title': meeting_title,
-            'datetime': datetime,
-            'unixtime': unixtime,
-            'snippet': snippet,
-            'start_time': start_time,
-            'rank': rank,
-            'link': meeting_link,
-            'authority': authority_result
-        })
-        
-    conn.close()
+            formatted_results.append({
+                'title': meeting_title,
+                'datetime': datetime,
+                'unixtime': unixtime,
+                'snippet': snippet,
+                'start_time': start_time,
+                'rank': rank,
+                'link': meeting_link,
+                'authority': authority_result
+            })
 
     return JSONResponse(content=formatted_results)
 
@@ -128,16 +126,16 @@ async def available_authorities() -> JSONResponse:
     """
     Endpoint to get available authorities and their transcript counts.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.execute('''
-        SELECT authority, COUNT(*) as transcript_count
-        FROM authorities
-        JOIN meetings ON authorities.id = meetings.authority
-        WHERE meetings.uid IN (
-            SELECT uid FROM transcripts_fts
-        )
-        GROUP BY authority
-    ''')
-    authorities = {row[0]: row[1] for row in cursor.fetchall()}
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute('''
+            SELECT authority, COUNT(*) as transcript_count
+            FROM authorities
+            JOIN meetings ON authorities.id = meetings.authority
+            WHERE meetings.uid IN (
+                SELECT uid FROM transcripts_fts
+            )
+            GROUP BY authority
+        ''')
+        authorities = {row[0]: row[1] for row in cursor.fetchall()}
+
     return JSONResponse(content=authorities)
