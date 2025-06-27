@@ -23,6 +23,27 @@ SCRYPT_P = 1
 SCRYPT_SALT_SIZE = 24
 
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: str | None = None
+
+
+class User(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+    disabled: bool
+    admin: bool
+
+
+class UserInDB(User):
+    hashed_password: bytes
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -116,26 +137,6 @@ def create_user_database() -> None:
             """,
                 (username, full_name, email, hashed_password),
             )
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: str | None = None
-
-
-class User(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
-    disabled: bool | None = None
-
-
-class UserInDB(User):
-    hashed_password: bytes
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
