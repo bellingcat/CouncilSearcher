@@ -97,7 +97,7 @@ def add_user_to_db(user: UserInDB) -> None:
         conn.execute(
             """
                 INSERT INTO users (username, full_name, email, hashed_password, admin)
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
             """,
             (username, full_name, email, hashed_password, admin),
         )
