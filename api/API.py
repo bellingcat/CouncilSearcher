@@ -139,3 +139,86 @@ async def available_authorities() -> JSONResponse:
         authorities = {row[0]: row[1] for row in cursor.fetchall()}
 
     return JSONResponse(content=authorities)
+
+def get_transcript_and_meeting_counts(
+        authority: str
+    ) -> tuple[int, int]:
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        # Compare number of transcripts_fts and meetings
+        cursor = conn.execute('''
+            SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
+                SELECT uid FROM meetings WHERE authority = ?
+            )
+        ''', (authority,))
+        
+        transcripts_count = cursor.fetchone()[0]
+
+        cursor = conn.execute('''
+            SELECT COUNT(*) FROM meetings WHERE authority = ?
+        ''', (authority,))
+
+        meetings_count = cursor.fetchone()[0]
+
+    return transcripts_count, meetings_count
+
+def create_database(db_path: str)-> None:
+    # Create tables
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS authorities (
+                id TEXT PRIMARY KEY
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS meetings (
+                uid TEXT PRIMARY KEY,
+                authority TEXT,
+                title TEXT,
+                description TEXT,
+                datetime TEXT,
+                unixtime INTEGER,
+                link TEXT,
+                FOREIGN KEY (authority) REFERENCES authorities(id)
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS transcripts (
+                uid TEXT,
+                transcript TEXT,
+                title TEXT,
+                description TEXT,
+                start_time TEXT,
+                end_time TEXT,
+                PRIMARY KEY (uid, start_time, end_time),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS agenda (
+                uid TEXT,
+                agenda_id TEXT,
+                agenda_text TEXT,
+                agenda_time TEXT,
+                PRIMARY KEY (uid, agenda_id),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')
+        conn.execute('''
+            CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
+                uid,
+                transcript,
+                tokenize='porter'
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS offsets (
+                uid TEXT,
+                offset INTEGER,
+                start_time TEXT,
+                start_time_seconds INTEGER,
+                PRIMARY KEY (uid, offset),
+                FOREIGN KEY (uid) REFERENCES meetings(uid)
+            )
+        ''')
+    return     
