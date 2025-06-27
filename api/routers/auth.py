@@ -4,13 +4,13 @@ from contextlib import asynccontextmanager
 import getpass
 
 import jwt
-import bcrypt
+from hashlib import scrypt
 from fastapi import Depends, APIRouter, HTTPException, status, FastAPI
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
 import sqlite3
-from os import getenv
+from os import getenv, urandom
 
 # to get a string like this run:
 # openssl rand -hex 32
@@ -18,6 +18,11 @@ SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DB_PATH = "../data/users.db"
+
+SCRYPT_N = 16384
+SCRYPT_R = 8
+SCRYPT_P = 1
+SCRYPT_SALT_SIZE = 24
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,22 +102,41 @@ class User(BaseModel):
 
 
 class UserInDB(User):
-    hashed_password: str
+    hashed_password: bytes
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
-def verify_password(plain_password, hashed_password) -> bool:
+def verify_password(plain_password: str, hashed_and_salted_password: bytes) -> bool:
     plain_utf8 = plain_password.encode('utf-8')
-    hashed_utf8 = hashed_password.encode('utf-8') 
-    return bcrypt.checkpw(plain_utf8, hashed_utf8)
+    
+    # Extract the salt from the hashed password
+    salt = hashed_and_salted_password[:SCRYPT_SALT_SIZE]
+    hashed_password = hashed_and_salted_password[SCRYPT_SALT_SIZE:]
+    
+    key = scrypt(
+        plain_utf8,
+        salt=salt,
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
+    )
+    return key == hashed_password
 
 
 def get_password_hash(password:str) -> bytes:
     password_utf8 = password.encode('utf-8')
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password_utf8, salt)
+    salt = urandom(SCRYPT_SALT_SIZE)
+    # Use scrypt for hashing
+    hashed_password = scrypt(
+        password_utf8,
+        salt=salt,
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
+    )
+    return salt + hashed_password
 
 
 def get_user(username: str) -> UserInDB | None:
