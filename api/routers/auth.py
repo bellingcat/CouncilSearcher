@@ -258,7 +258,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     return user
 
 
-async def get_current_active_user(
+async def get_active_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if current_user.disabled:
@@ -266,7 +266,7 @@ async def get_current_active_user(
     return current_user
 
 
-async def get_current_admin_user(
+async def get_admin_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if not current_user.admin:
@@ -294,6 +294,6 @@ async def login_for_access_token(
 
 @router.get("/auth/me/", tags=["auth"], response_model=User)
 async def read_users_me(
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_active_user)],
 ) -> User:
     return current_user
