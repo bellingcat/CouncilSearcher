@@ -12,9 +12,7 @@ from pydantic import BaseModel
 import sqlite3
 from os import getenv, urandom
 
-# to get a string like this run:
-# openssl rand -hex 32
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+SECRET_KEY_PATH = "../data/jwt_secret.key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DB_PATH = "../data/users.db"
@@ -31,11 +29,36 @@ async def lifespan(app: FastAPI):
     """
     # Lines here will run when the app starts
     create_user_database()
+    create_jwt_secret()
     yield
     # Lines here will run when the app stops
 
 
 router = APIRouter(lifespan=lifespan)
+
+def create_jwt_secret() -> None:
+    """
+    Create a new token signing key when the app starts.
+    Existing tokens are invalidated and users will need to log in again.
+    """
+    signing_key = urandom(32)  # Generate a new random secret key
+    with open(SECRET_KEY_PATH, "wb") as key_file:
+        key_file.write(signing_key)
+
+    return 
+
+def get_secret_key() -> bytes:
+    """
+    Get the secret key for signing JWT tokens.
+    If the key file does not exist, create a new one.
+    """
+    try:
+        with open(SECRET_KEY_PATH, "rb") as key_file:
+            return key_file.read()
+    except FileNotFoundError:
+        create_jwt_secret()
+        with open(SECRET_KEY_PATH, "rb") as key_file:
+            return key_file.read()
 
 def create_admin_user() -> tuple[str, str, str, bytes]:
 
@@ -178,7 +201,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, get_secret_key(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -189,7 +212,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, get_secret_key(), algorithms=[ALGORITHM])
         username = payload.get("sub")
         if username is None:
             raise credentials_exception
