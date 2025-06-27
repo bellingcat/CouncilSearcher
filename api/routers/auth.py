@@ -50,30 +50,30 @@ class UserInDB(User):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password, hashed_password) -> bool:
     plain_utf8 = plain_password.encode('utf-8')
     hashed_utf8 = hashed_password.encode('utf-8') 
     return bcrypt.checkpw(plain_utf8, hashed_utf8)
 
 
-def get_password_hash(password):
+def get_password_hash(password:str) -> bytes:
     password_utf8 = password.encode('utf-8')
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password_utf8, salt)
 
 
-def get_user(db, username: str):
+def get_user(db, username: str) -> UserInDB | None:
     if username in db:
         user_dict = db[username]
         return UserInDB(**user_dict)
 
 
-def authenticate_user(fake_db, username: str, password: str):
+def authenticate_user(fake_db, username: str, password: str) -> UserInDB | None:
     user = get_user(fake_db, username)
     if not user:
-        return False
+        return
     if not verify_password(password, user.hashed_password):
-        return False
+        return 
     return user
 
 
@@ -88,7 +88,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> UserInDB:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -112,7 +112,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)],
-):
+) -> User:
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
@@ -139,12 +139,12 @@ async def login_for_access_token(
 @router.get("/auth/me/", tags=["auth"] ,response_model=User)
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
-):
+) -> User:
     return current_user
 
 
 @router.get("/auth/me/items/", tags=["auth"])
 async def read_own_items(
     current_user: Annotated[User, Depends(get_current_active_user)],
-):
+) -> list[dict]:
     return [{"item_id": "Foo", "owner": current_user.username}]
