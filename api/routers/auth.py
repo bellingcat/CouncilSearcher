@@ -274,6 +274,11 @@ async def get_admin_user(
     return current_user
 
 
+# Annotated types for adding authentication dependencies
+active_user = Annotated[User, Depends(get_active_user)]
+admin_user = Annotated[User, Depends(get_admin_user)]
+
+
 @router.post("/auth/token", tags=["auth"])
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
