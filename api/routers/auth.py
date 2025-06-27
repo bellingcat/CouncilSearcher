@@ -85,7 +85,22 @@ def get_secret_key() -> bytes:
             return key_file.read()
 
 
-def create_admin_user() -> tuple[str, str, str, bytes]:
+def add_user_to_db(user: UserInDB) -> None:
+
+    username = user.username
+    full_name = user.full_name
+    email = user.email
+    hashed_password = user.hashed_password
+    admin = user.admin
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+                INSERT INTO users (username, full_name, email, hashed_password, admin)
+                VALUES (?, ?, ?, ?)
+            """,
+            (username, full_name, email, hashed_password, admin),
+        )
 
     # Check environment variables for admin user details
     username = getenv("ADMIN_USERNAME", "")
