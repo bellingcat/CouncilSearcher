@@ -102,29 +102,36 @@ def add_user_to_db(user: UserInDB) -> None:
             (username, full_name, email, hashed_password, admin),
         )
 
+
+def create_admin_user() -> UserInDB:
+
     # Check environment variables for admin user details
     username = getenv("ADMIN_USERNAME", "")
     password = getenv("ADMIN_PASSWORD", "")
     full_name = getenv("ADMIN_FULL_NAME", "")
     email = getenv("ADMIN_EMAIL", "")
 
-    if username and password:
-        hashed_password = get_password_hash(password)
-        return username, full_name, email, hashed_password
-
-    # If environment variables are not set, prompt for input
-    print("No admin user details found in environment variables.")
-    print("Please enter the details for the admin user.")
-    username = input("Enter a username: ")
-    full_name = input("Enter full name: ")
-    email = input("Enter email: ")
-    password = getpass.getpass("Enter password: ")
-    hashed_password = get_password_hash(password)
+    if not (username and password):
+        # If environment variables are not set, prompt for input
+        print("No admin user details found in environment variables.")
+        print("Please enter the details for the admin user.")
+        username = input("Enter a username: ")
+        full_name = input("Enter full name: ")
+        email = input("Enter email: ")
+        password = getpass.getpass("Enter password: ")
 
     if not username or not password:
         raise ValueError("Username and password are required.")
 
-    return username, full_name, email, hashed_password
+    hashed_password = get_password_hash(password)
+    return UserInDB(
+        username=username,
+        full_name=full_name,
+        email=email,
+        hashed_password=hashed_password,
+        disabled=False,
+        admin=True,
+    )
 
 
 def create_user_database() -> None:
@@ -137,21 +144,15 @@ def create_user_database() -> None:
                 full_name TEXT,
                 email TEXT UNIQUE,
                 hashed_password BLOB,
-                disabled BOOLEAN DEFAULT FALSE
+                disabled BOOLEAN DEFAULT FALSE,
+                admin BOOLEAN DEFAULT FALSE
             )
         """
         )
         # If the table is empty, create a user
         cursor = conn.execute("SELECT COUNT(*) FROM users")
         if cursor.fetchone()[0] == 0:
-            username, full_name, email, hashed_password = create_admin_user()
-            conn.execute(
-                """
-                INSERT INTO users (username, full_name, email, hashed_password)
-                VALUES (?, ?, ?, ?)
-            """,
-                (username, full_name, email, hashed_password),
-            )
+            add_user_to_db(create_admin_user())
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -192,7 +193,7 @@ def get_user(username: str) -> UserInDB | None:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
             """
-                SELECT username, full_name, email, hashed_password, disabled FROM users
+                SELECT username, full_name, email, hashed_password, disabled, admin FROM users
                 WHERE username = ?
             """,
             (username,),
@@ -203,7 +204,7 @@ def get_user(username: str) -> UserInDB | None:
     if not user:
         return None
 
-    username, full_name, email, hashed_password, disabled = user
+    username, full_name, email, hashed_password, disabled, admin = user
 
     return UserInDB(
         username=username,
@@ -211,6 +212,7 @@ def get_user(username: str) -> UserInDB | None:
         email=email,
         hashed_password=hashed_password,
         disabled=disabled,
+        admin=admin,
     )
 
 
