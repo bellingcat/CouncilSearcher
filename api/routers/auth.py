@@ -100,7 +100,7 @@ class UserInDB(User):
     hashed_password: str
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 def verify_password(plain_password, hashed_password) -> bool:
