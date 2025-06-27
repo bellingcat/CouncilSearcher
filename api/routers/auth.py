@@ -22,6 +22,7 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 SCRYPT_SALT_SIZE = 24
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
 
 router = APIRouter(lifespan=lifespan)
 
+
 def create_jwt_secret() -> None:
     """
     Create a new token signing key when the app starts.
@@ -45,7 +47,8 @@ def create_jwt_secret() -> None:
     with open(SECRET_KEY_PATH, "wb") as key_file:
         key_file.write(signing_key)
 
-    return 
+    return
+
 
 def get_secret_key() -> bytes:
     """
@@ -60,13 +63,14 @@ def get_secret_key() -> bytes:
         with open(SECRET_KEY_PATH, "rb") as key_file:
             return key_file.read()
 
+
 def create_admin_user() -> tuple[str, str, str, bytes]:
 
     # Check environment variables for admin user details
-    username = getenv("ADMIN_USERNAME","")
-    password = getenv("ADMIN_PASSWORD","")
-    full_name = getenv("ADMIN_FULL_NAME","")
-    email = getenv("ADMIN_EMAIL","")
+    username = getenv("ADMIN_USERNAME", "")
+    password = getenv("ADMIN_PASSWORD", "")
+    full_name = getenv("ADMIN_FULL_NAME", "")
+    email = getenv("ADMIN_EMAIL", "")
 
     if username and password:
         hashed_password = get_password_hash(password)
@@ -83,14 +87,15 @@ def create_admin_user() -> tuple[str, str, str, bytes]:
 
     if not username or not password:
         raise ValueError("Username and password are required.")
-    
+
     return username, full_name, email, hashed_password
 
 
-def create_user_database()-> None:
+def create_user_database() -> None:
     # Create tables
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute('''
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY,
                 full_name TEXT,
@@ -98,15 +103,20 @@ def create_user_database()-> None:
                 hashed_password BLOB,
                 disabled BOOLEAN DEFAULT FALSE
             )
-        ''')
+        """
+        )
         # If the table is empty, create a user
-        cursor = conn.execute('SELECT COUNT(*) FROM users')
+        cursor = conn.execute("SELECT COUNT(*) FROM users")
         if cursor.fetchone()[0] == 0:
             username, full_name, email, hashed_password = create_admin_user()
-            conn.execute('''
+            conn.execute(
+                """
                 INSERT INTO users (username, full_name, email, hashed_password)
                 VALUES (?, ?, ?, ?)
-            ''', (username, full_name, email, hashed_password))
+            """,
+                (username, full_name, email, hashed_password),
+            )
+
 
 class Token(BaseModel):
     access_token: str
@@ -132,12 +142,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 def verify_password(plain_password: str, hashed_and_salted_password: bytes) -> bool:
-    plain_utf8 = plain_password.encode('utf-8')
-    
+    plain_utf8 = plain_password.encode("utf-8")
+
     # Extract the salt from the hashed password
     salt = hashed_and_salted_password[:SCRYPT_SALT_SIZE]
     hashed_password = hashed_and_salted_password[SCRYPT_SALT_SIZE:]
-    
+
     key = scrypt(
         plain_utf8,
         salt=salt,
@@ -148,8 +158,8 @@ def verify_password(plain_password: str, hashed_and_salted_password: bytes) -> b
     return key == hashed_password
 
 
-def get_password_hash(password:str) -> bytes:
-    password_utf8 = password.encode('utf-8')
+def get_password_hash(password: str) -> bytes:
+    password_utf8 = password.encode("utf-8")
     salt = urandom(SCRYPT_SALT_SIZE)
     # Use scrypt for hashing
     hashed_password = scrypt(
@@ -164,16 +174,19 @@ def get_password_hash(password:str) -> bytes:
 
 def get_user(username: str) -> UserInDB | None:
     with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.execute('''
+        cursor = conn.execute(
+            """
                 SELECT username, full_name, email, hashed_password, disabled FROM users
                 WHERE username = ?
-            ''', (username,))
+            """,
+            (username,),
+        )
 
         user = cursor.fetchone()
 
     if not user:
         return None
-    
+
     username, full_name, email, hashed_password, disabled = user
 
     return UserInDB(
@@ -181,7 +194,7 @@ def get_user(username: str) -> UserInDB | None:
         full_name=full_name,
         email=email,
         hashed_password=hashed_password,
-        disabled=disabled
+        disabled=disabled,
     )
 
 
@@ -190,7 +203,7 @@ def authenticate_user(username: str, password: str) -> UserInDB | None:
     if not user:
         return
     if not verify_password(password, user.hashed_password):
-        return 
+        return
     return user
 
 
@@ -253,7 +266,7 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-@router.get("/auth/me/", tags=["auth"] ,response_model=User)
+@router.get("/auth/me/", tags=["auth"], response_model=User)
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
