@@ -211,10 +211,3 @@ async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
     return current_user
-
-
-@router.get("/auth/me/items/", tags=["auth"])
-async def read_own_items(
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> list[dict]:
-    return [{"item_id": "Foo", "owner": current_user.username}]
