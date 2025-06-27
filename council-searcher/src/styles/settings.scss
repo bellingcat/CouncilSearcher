@@ -5,11 +5,22 @@
  */
 
 // https://vuetifyjs.com/features/sass-variables/`
-// @use 'vuetify/settings' with (
-//   $color-pack: false
-// );
+@use "vuetify/settings" with (
+    $input-control-height: 20px
+);
 
 .highlight {
     background-color: #813c99; /* Highlight color */
     font-weight: bold; /* Optional: Make it bold */
+}
+
+.link {
+    color: #813c99; /* Link color */
+    text-decoration: underline; /* Optional: Underline the link */
+}
+
+.v-checkbox-btn,
+.v-checkbox-btn .v-label {
+    font-size: 12px;
+    height: 2em;
 }

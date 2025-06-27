@@ -6,9 +6,9 @@
             v-html="highlightedSnippet"
         ></v-card-text>
         <v-card-subtitle class="text-left">
-            {{ result.date }} - {{ result.start_time }}
+            {{ result.datetime }} - {{ result.start_time }}
         </v-card-subtitle>
-        <v-card-actions>
+        <v-card-actions class="d-flex justify-space-between">
             <v-btn
                 prepend-icon="mdi-video"
                 :href="result.link"
@@ -18,6 +18,9 @@
             >
                 Watch the video
             </v-btn>
+            <v-chip class="ma-2" color="primary" text small outlined>
+                {{ result.authority }}
+            </v-chip>
         </v-card-actions>
     </v-card>
 </template>
@@ -41,5 +44,3 @@ export default {
     },
 };
 </script>
-
-<style scoped></style>

@@ -12,7 +12,7 @@
                         src="@/assets/bellingcat.svg"
                     />
                     <h1 class="mb-6 py-2 font-weight-bold">
-                        Council Meeting Search Demo
+                        Council Meeting Transcript Search
                     </h1>
                     <a href="https://www.bellingcat.com">
                         <img
@@ -35,28 +35,94 @@
                 </v-col>
             </v-row>
             <v-row>
-                <v-card
-                    class="pa-4"
-                    title="What is this demo all about?"
-                    color="surface-variant"
-                >
+                <v-card class="px-4 py-2 mb-2" color="surface-variant">
                     <p>
-                        This is a demo of a local democracy reporting tool that
-                        enables local researchers to search auto-generated
-                        transcripts of Council meetings. This demo covers the
-                        225 council meetings streamed between 07/05/2024 and
-                        30/04/2025 for Birmingham City Council.
+                        This is a local democracy reporting tool that enables
+                        researchers to search auto-generated transcripts of
+                        Council meetings for different authorities across the UK
+                        and Ireland.
+                    </p>
+                    <br />
+                    <p>
+                        <a
+                            class="link"
+                            href="https://docs.google.com/forms/d/e/1FAIpQLSeiLbiwJ-V5XY-2PNllASHtQgFpkO2fdhSHVBigqxNKm6JFQw/viewform?usp=dialog"
+                        >
+                            Sign up here to stay updated (and leave optional
+                            feedback)
+                        </a>
                     </p>
                 </v-card>
             </v-row>
-
+            <v-row>
+                <v-col cols="12">
+                    <v-card
+                        class="px-4 py-2 mt-4 mb-2"
+                        title="Filter by Authority"
+                        color="surface"
+                    >
+                        <p class="text" v-if="loadingAuthorities">
+                            Loading Authorities
+                            <v-progress-circular
+                                indeterminate
+                                color="primary"
+                                class="ml-2"
+                            />
+                        </p>
+                        <p
+                            class="text error"
+                            v-else-if="errorLoadingAuthorities"
+                        >
+                            Error loading authorities. Please try again later.
+                        </p>
+                        <template v-else>
+                            <p class="text">
+                                Select the authorities of interest. The brackets
+                                indicate the number of transcripts available.
+                            </p>
+                            <v-text-field
+                                v-model="authorityFilter"
+                                label="Filter Authorities"
+                                outlined
+                                clearable
+                                class="mb-0 mt-2"
+                                density="compact"
+                            />
+                            <v-container
+                                class="mt-0"
+                                fluid
+                                style="max-height: 100px; overflow-y: auto"
+                            >
+                                <v-row>
+                                    <v-col
+                                        v-for="(
+                                            count, authority
+                                        ) in filteredAuthorities"
+                                        :key="authority"
+                                        cols="auto"
+                                        class="px-1 py-0"
+                                    >
+                                        <v-checkbox
+                                            v-model="selectedAuthorities"
+                                            density="compact"
+                                            :label="`${authority} (${count})`"
+                                            :value="authority"
+                                            hide-details="true"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </v-container>
+                        </template>
+                    </v-card>
+                </v-col>
+            </v-row>
             <v-row>
                 <v-text-field
                     v-model="searchQuery"
                     label="Search"
                     outlined
                     clearable
-                    class="mt-4"
+                    class="mt-2 mb-0"
                     @keyup.enter="performSearch"
                     @click:clear="results = []"
                 >
@@ -71,8 +137,53 @@
                     </template>
                 </v-text-field>
             </v-row>
-            <v-row v-if="results.length" class="mt-4">
-                <template v-for="result in results" :key="result.link">
+            <v-row class="mt-0">
+                <v-col cols="12" md="6">
+                    <v-date-input
+                        v-model="startDate"
+                        label="Start Date"
+                        outlined
+                        clearable="true"
+                        density="compact"
+                        :display-format="formatAsIso"
+                        placeholder="yyyy-mm-dd"
+                        @update:model-value="performSearch"
+                    />
+                </v-col>
+                <v-col cols="12" md="6">
+                    <v-date-input
+                        v-model="endDate"
+                        label="End Date"
+                        outlined
+                        clearable="true"
+                        :min="startDate"
+                        density="compact"
+                        :display-format="formatAsIso"
+                        placeholder="yyyy-mm-dd"
+                        @update:model-value="performSearch"
+                    />
+                </v-col>
+            </v-row>
+            <v-row v-if="results.length" class="my-0 py-0">
+                <v-col class="ma-0 pa-0" cols="auto">
+                    <div class="text-h4">Search Results</div>
+                </v-col>
+                <v-spacer />
+                <v-col class="ma-0 pa-0" cols="auto">
+                    <v-select
+                        v-model="sortOption"
+                        :items="sortOptions"
+                        label="Sort by"
+                        outlined
+                        class="mt-2 mb-2"
+                        @change="sortResults"
+                        hide-details="true"
+                        density="compact"
+                    />
+                </v-col>
+            </v-row>
+            <v-row v-if="results.length" class="mt-2">
+                <template v-for="result in sortedResults" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
             </v-row>
@@ -81,22 +192,104 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import { useDate } from "vuetify";
 import axios from "axios";
 
 const searchQuery = ref("");
 const results = ref([]);
+const selectedAuthorities = ref([]);
+const authorities = ref({});
+const sortOption = ref("Best Match");
+const sortOptions = [
+    "Best Match",
+    "Date (newest first)",
+    "Date (oldest first)",
+];
+const startDate = ref(null);
+const endDate = ref(null);
+const adapter = useDate();
+function formatAsIso(date) {
+    return adapter.toISO(date);
+}
+
+const authorityFilter = ref("");
+const loadingAuthorities = ref(true);
+const errorLoadingAuthorities = ref(false);
+
+const filteredAuthorities = computed(() => {
+    if (!authorityFilter.value) {
+        return authorities.value;
+    }
+    const filter = authorityFilter.value.toLowerCase();
+    return Object.fromEntries(
+        Object.entries(authorities.value).filter(([key]) =>
+            key.toLowerCase().includes(filter)
+        )
+    );
+});
+
+const sortedResults = computed(() => {
+    if (sortOption.value === "Best Match") {
+        return [...results.value].sort((a, b) => b.rank - a.rank);
+    } else if (sortOption.value === "Date (newest first)") {
+        return [...results.value].sort((a, b) => b.unixtime - a.unixtime);
+    } else if (sortOption.value === "Date (oldest first)") {
+        return [...results.value].sort((a, b) => a.unixtime - b.unixtime);
+    }
+    return results.value;
+});
+
+const fetchAuthorities = async () => {
+    try {
+        const response = await axios.get(
+            "http://127.0.0.1:5000/transcript_counts_by_authority"
+        );
+        if (response.status !== 200) {
+            errorLoadingAuthorities.value = true;
+        }
+        authorities.value = response.data;
+    } catch (error) {
+        console.error("Error fetching authorities:", error);
+        errorLoadingAuthorities.value = true;
+    } finally {
+        loadingAuthorities.value = false;
+    }
+};
 
 const performSearch = async () => {
     try {
+        const authorityParams = selectedAuthorities.value
+            .map((authority) => `authority=${encodeURIComponent(authority)}`)
+            .join("&");
+        const dateParams = [
+            startDate.value
+                ? `startdate=${encodeURIComponent(
+                      formatAsIso(startDate.value)
+                  )}`
+                : "",
+            endDate.value
+                ? `enddate=${encodeURIComponent(formatAsIso(endDate.value))}`
+                : "",
+        ]
+            .filter(Boolean)
+            .join("&");
+        const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
+            authorityParams ? `&${authorityParams}` : ""
+        }${dateParams ? `&${dateParams}` : ""}`;
         const response = await axios.get(
-            `http://127.0.0.1:5000/search?query=${encodeURIComponent(
-                searchQuery.value
-            )}`
+            `http://127.0.0.1:5000/search?${queryParams}`
         );
         results.value = response.data;
     } catch (error) {
         console.error("Error fetching search results:", error);
     }
 };
+
+const sortResults = () => {
+    // Trigger reactivity for sorting
+    sortedResults.value;
+};
+
+fetchAuthorities();
 </script>
