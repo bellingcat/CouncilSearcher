@@ -59,14 +59,14 @@ def create_admin_user() -> UserInDB:
 
 
 # Endpoints
-@router.get("/auth/me/", tags=["auth"], response_model=User)
+@router.get("/auth/me/", tags=["users"], response_model=User)
 async def read_users_me(
     current_user: active_user,
 ) -> User:
     return current_user
 
 
-@router.post("/auth/create_user", tags=["admin"])
+@router.post("/auth/create_user", tags=["users"])
 async def create_user(
     current_user: admin_user,
     username: str,
