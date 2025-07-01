@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     Lifespan event handler.
     """
     # Lines here will run when the app starts
+    meetings.create_database()
     yield
     # Lines here will run when the app stops
 
