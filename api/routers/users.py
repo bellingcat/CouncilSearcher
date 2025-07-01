@@ -1,9 +1,9 @@
 # Standard library
+from contextlib import asynccontextmanager
 import getpass
 from os import getenv
 
 # Third-party libraries
-from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 # Local application imports

@@ -1,8 +1,8 @@
 # Standard library
+from contextlib import asynccontextmanager
 from typing import Union
 
 # Third-party libraries
-from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Query
 from fastapi.responses import JSONResponse
 
