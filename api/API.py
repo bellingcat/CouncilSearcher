@@ -4,12 +4,13 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import auth
+from api.routers import auth, users
 
 import sqlite3
 
 app = FastAPI()
 app.include_router(auth.router)
+app.include_router(users.router)
 
 # Allow CORS for all origins
 app.add_middleware(
