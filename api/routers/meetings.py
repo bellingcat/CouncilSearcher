@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 router = APIRouter(lifespan=lifespan)
 
 
-@router.get("/search", tags=["meetings"])
+@router.get("/meetings/search", tags=["meetings"])
 async def search_meetings(
     query: str,
     authority: Union[list[str], None] = Query(None),
@@ -59,7 +59,7 @@ async def search_meetings(
     return JSONResponse(content=results)
 
 
-@router.get("/transcript_counts_by_authority", tags=["meetings"])
+@router.get("/meetings/transcript_counts_by_authority", tags=["meetings"])
 async def available_authorities() -> JSONResponse:
     """
     Endpoint to get available authorities and their corresponding number of available transcripts.
