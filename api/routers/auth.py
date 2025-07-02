@@ -1,6 +1,7 @@
 # Standard library
 from contextlib import asynccontextmanager
 from os import urandom
+from pathlib import Path
 from typing import Annotated
 from datetime import datetime, timedelta, timezone
 
@@ -17,7 +18,7 @@ from api.models.auth import Token
 from api.db.users import get_user
 
 # Constants
-SECRET_KEY_PATH = "../data/jwt_secret.key"
+SECRET_KEY_PATH = (Path(__file__).parent.parent / "data" / "jwt_secret.key").resolve()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

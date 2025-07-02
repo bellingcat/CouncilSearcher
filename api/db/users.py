@@ -1,4 +1,5 @@
 # Standard library
+from pathlib import Path
 from typing import Callable
 
 # Third-party libraries
@@ -8,7 +9,7 @@ import sqlite3
 from api.models.users import UserInDB
 
 # Constants
-DB_PATH = "../data/users.db"
+DB_PATH = (Path(__file__).parent.parent / "data" / "users.db").resolve()
 
 
 def get_user(username: str) -> UserInDB | None:

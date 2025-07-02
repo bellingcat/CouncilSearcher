@@ -1,8 +1,12 @@
+from pathlib import Path
+
 import sqlite3
 
 from api.models.meetings import MeetingItem
 
-DB_PATH = "../data/council_meetings.db"
+DB_PATH = DB_PATH = (
+    Path(__file__).parent.parent / "data" / "council_meetings.db"
+).resolve()
 
 
 def create_database() -> None:
