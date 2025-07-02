@@ -289,6 +289,6 @@ async def login_for_access_token(
 
 @router.get("/auth/me/", tags=["auth"], response_model=User)
 async def read_users_me(
-    current_user: Annotated[User, Depends(get_active_user)],
+    current_user: active_user,
 ) -> User:
     return current_user
