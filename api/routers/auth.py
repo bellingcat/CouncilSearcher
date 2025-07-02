@@ -21,11 +21,6 @@ SECRET_KEY_PATH = "../data/jwt_secret.key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-SCRYPT_N = 16384
-SCRYPT_R = 8
-SCRYPT_P = 1
-SCRYPT_SALT_SIZE = 24
-
 
 # API
 @asynccontextmanager
