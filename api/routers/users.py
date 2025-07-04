@@ -27,6 +27,32 @@ async def lifespan(app: FastAPI):
 router = APIRouter(lifespan=lifespan)
 
 
+def prompt_nonempty(prompt_text: str) -> str:
+    while True:
+        value = input(prompt_text).strip()
+        if value:
+            return value
+        print("This field cannot be empty.")
+
+
+def prompt_password() -> str:
+    while True:
+        password = getpass.getpass("Enter password: ")
+        if len(password) < 8:
+            print("Password must be at least 8 characters long.")
+            continue
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            print("Passwords do not match.")
+            continue
+        return password
+
+
+def confirm_details(username: str, full_name: str, email: str) -> bool:
+    prompt = f"Create admin user {username} ({full_name}, {email})? (y/n): "
+    return input(prompt).strip().lower() in ("y", "yes")
+
+
 def create_admin_user() -> UserInDB:
 
     # Check environment variables for admin user details
@@ -38,11 +64,14 @@ def create_admin_user() -> UserInDB:
     if not (username and password):
         # If environment variables are not set, prompt for input
         print("No admin user details found in environment variables.")
-        print("Please enter the details for the admin user.")
-        username = input("Enter a username: ")
-        full_name = input("Enter full name: ")
-        email = input("Enter email: ")
-        password = getpass.getpass("Enter password: ")
+        while True:
+            print("Please enter the details for the admin user.")
+            username = prompt_nonempty("Enter a username: ")
+            full_name = input("Enter full name: ")
+            email = input("Enter email: ")
+            password = prompt_password()
+            if confirm_details(username, full_name, email):
+                break
 
     if not username or not password:
         raise ValueError("Username and password are required.")
