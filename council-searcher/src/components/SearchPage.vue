@@ -243,7 +243,7 @@ const sortedResults = computed(() => {
 const fetchAuthorities = async () => {
     try {
         const response = await axios.get(
-            "http://127.0.0.1:5000/transcript_counts_by_authority"
+            "http://127.0.0.1:5000/meetings/transcript_counts_by_authority"
         );
         if (response.status !== 200) {
             errorLoadingAuthorities.value = true;
@@ -278,7 +278,7 @@ const performSearch = async () => {
             authorityParams ? `&${authorityParams}` : ""
         }${dateParams ? `&${dateParams}` : ""}`;
         const response = await axios.get(
-            `http://127.0.0.1:5000/search?${queryParams}`
+            `http://127.0.0.1:5000/meetings/search?${queryParams}`
         );
         results.value = response.data;
     } catch (error) {

@@ -1,58 +1,42 @@
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+# Standard library
 from contextlib import asynccontextmanager
-import getpass
+from os import urandom
+from pathlib import Path
+from typing import Annotated
+from datetime import datetime, timedelta, timezone
 
-import jwt
-from fastapi import Depends, APIRouter, HTTPException, status, FastAPI
+# Third-party libraries
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.hash import argon2
-from pydantic import BaseModel
-import sqlite3
-from os import getenv, urandom
 
-SECRET_KEY_PATH = "../data/jwt_secret.key"
+# Local application imports
+from api.models.users import User, UserInDB
+from api.models.auth import Token
+from api.db.users import get_user
+
+# Constants
+SECRET_KEY_PATH = (Path(__file__).parent.parent / "data" / "jwt_secret.key").resolve()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-DB_PATH = "../data/users.db"
-
-SCRYPT_N = 16384
-SCRYPT_R = 8
-SCRYPT_P = 1
-SCRYPT_SALT_SIZE = 24
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class User(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
-    disabled: bool = False
-    admin: bool = False
-
-
-class UserInDB(User):
-    hashed_password: str
-
-
+# API
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan event handler to create the user database when the app starts.
+    Lifespan event handler.
     """
     # Lines here will run when the app starts
-    create_user_database()
     create_jwt_secret()
     yield
     # Lines here will run when the app stops
 
 
 router = APIRouter(lifespan=lifespan)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 def create_jwt_secret() -> None:
@@ -81,112 +65,12 @@ def get_secret_key() -> bytes:
             return key_file.read()
 
 
-def add_user_to_db(user: UserInDB) -> None:
-
-    username = user.username
-    full_name = user.full_name
-    email = user.email
-    hashed_password = user.hashed_password
-    admin = user.admin
-
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-                INSERT INTO users (username, full_name, email, hashed_password, admin)
-                VALUES (?, ?, ?, ?, ?)
-            """,
-            (username, full_name, email, hashed_password, admin),
-        )
-
-
-def create_admin_user() -> UserInDB:
-
-    # Check environment variables for admin user details
-    username = getenv("ADMIN_USERNAME", "")
-    password = getenv("ADMIN_PASSWORD", "")
-    full_name = getenv("ADMIN_FULL_NAME", "")
-    email = getenv("ADMIN_EMAIL", "")
-
-    if not (username and password):
-        # If environment variables are not set, prompt for input
-        print("No admin user details found in environment variables.")
-        print("Please enter the details for the admin user.")
-        username = input("Enter a username: ")
-        full_name = input("Enter full name: ")
-        email = input("Enter email: ")
-        password = getpass.getpass("Enter password: ")
-
-    if not username or not password:
-        raise ValueError("Username and password are required.")
-
-    hashed_password = get_password_hash(password)
-    return UserInDB(
-        username=username,
-        full_name=full_name,
-        email=email,
-        hashed_password=hashed_password,
-        disabled=False,
-        admin=True,
-    )
-
-
-def create_user_database() -> None:
-    # Create tables
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                full_name TEXT,
-                email TEXT UNIQUE,
-                hashed_password BLOB,
-                disabled BOOLEAN DEFAULT FALSE,
-                admin BOOLEAN DEFAULT FALSE
-            )
-        """
-        )
-        # If the table is empty, create a user
-        cursor = conn.execute("SELECT COUNT(*) FROM users")
-        if cursor.fetchone()[0] == 0:
-            add_user_to_db(create_admin_user())
-
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return argon2.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     return argon2.hash(password)
-
-
-def get_user(username: str) -> UserInDB | None:
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.execute(
-            """
-                SELECT username, full_name, email, hashed_password, disabled, admin FROM users
-                WHERE username = ?
-            """,
-            (username,),
-        )
-
-        user = cursor.fetchone()
-
-    if not user:
-        return None
-
-    username, full_name, email, hashed_password, disabled, admin = user
-
-    return UserInDB(
-        username=username,
-        full_name=full_name,
-        email=email,
-        hashed_password=hashed_password,
-        disabled=disabled,
-        admin=admin,
-    )
 
 
 def authenticate_user(username: str, password: str) -> UserInDB | None:
@@ -209,7 +93,9 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> UserInDB:
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserInDB:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -249,6 +135,7 @@ active_user = Annotated[User, Depends(get_active_user)]
 admin_user = Annotated[User, Depends(get_admin_user)]
 
 
+# Endpoints
 @router.post("/auth/token", tags=["auth"])
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -262,10 +149,3 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username})
     return Token(access_token=access_token, token_type="bearer")
-
-
-@router.get("/auth/me/", tags=["auth"], response_model=User)
-async def read_users_me(
-    current_user: active_user,
-) -> User:
-    return current_user
