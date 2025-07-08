@@ -1,4 +1,3 @@
-from api.providers.publici import PublicI
 from api.models.meetings import MeetingItem
 
 
@@ -41,3 +40,6 @@ class Provider:
         This method should be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+
+from api.providers.publici import PublicI
