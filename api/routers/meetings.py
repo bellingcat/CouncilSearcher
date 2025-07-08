@@ -140,10 +140,10 @@ async def load_meetings_from_all_authorities() -> None:
 
     for authority, provider_name, config in authorities_providers_configs:
         provider = Provider.create(provider_name, authority, config)
-        provider.build_index()
+        index = provider.build_index()
 
         meetings.add_meetings_to_db(
-            authority=authority, meetings=provider.get_meetings()
+            authority=authority, meetings=provider.get_meetings(index)
         )
 
 

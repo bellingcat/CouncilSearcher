@@ -27,17 +27,19 @@ class Provider:
 
         self.index: list | None = None
 
-    def build_index(self) -> None:
+    def build_index(self) -> list[MeetingItem]:
         """
         Build the index for the provider.
-        This method should be implemented by subclasses and should populate the `self.index` attribute.
+        This method should be implemented by subclasses.
+        The index exists to enable filtering, but expensive calls shouldn't be made here.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def get_meetings(self) -> list[MeetingItem]:
+    def get_meetings(self, index: list[MeetingItem]) -> list[MeetingItem]:
         """
         Get meetings for the provider.
         This method should be implemented by subclasses.
+        This method should add values to the index, and can make expensive calls.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
