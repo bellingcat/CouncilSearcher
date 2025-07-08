@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 from typing import Union
 
 # Third-party libraries
-from fastapi import APIRouter, FastAPI, Query
+from fastapi import APIRouter, FastAPI, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 
 # Local application imports
 from api.db import meetings
+from api.providers.provider import Provider
 from api.routers.auth import active_user, admin_user
 
 
@@ -131,3 +132,31 @@ async def add_provider(
         return JSONResponse(content={"message": "Provider added successfully"})
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+async def load_meetings_from_all_authorities() -> None:
+
+    authorities_providers_configs = meetings.get_available_authorities_and_providers()
+
+    for authority, provider_name, config in authorities_providers_configs:
+        provider = Provider.create(provider_name, authority, config)
+        provider.build_index()
+
+        meetings.add_meetings_to_db(
+            authority=authority, meetings=provider.get_meetings()
+        )
+
+
+@router.post("/meetings/load_all", tags=["meetings"])
+async def trigger_load_meetings_from_all_authorities(
+    current_user: admin_user,
+    background_tasks: BackgroundTasks,
+) -> JSONResponse:
+    """
+    Load meetings from all authorities into the database.
+    This function is intended to be called periodically
+    """
+
+    background_tasks.add_task(load_meetings_from_all_authorities)
+
+    return JSONResponse(content={"message": "Job submitted."})

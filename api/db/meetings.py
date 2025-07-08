@@ -363,6 +363,23 @@ def search_meetings(
 
         return formatted_results
 
+
+def get_available_authorities_and_providers() -> list[tuple[str, str, dict | None]]:
+    """
+    Get a list of available authorities, corresponding providers, and configs.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT authorities.id, providers.id, providers.config
+            FROM authorities
+            JOIN providers ON authorities.provider = providers.id
+        """
+        )
+        authorities_providers_configs = cursor.fetchall()
+    return authorities_providers_configs
+
+
 def add_provider(provider_id: str, config: dict | None = None) -> None:
     """
     Add a new provider to the database.
