@@ -112,7 +112,7 @@ class PublicI(Provider):
         if uid != link.split("/")[-1]:
             print(f"UID {uid} does not match link {link}")
 
-        transcript_url = self._transcript_url_template.format(uid=item["uid"])
+        transcript_url = self._transcript_url_template.format(uid=uid)
         transcript = get_text(transcript_url)
 
         parsed_transcript = parse_vtt(transcript) if transcript else None
