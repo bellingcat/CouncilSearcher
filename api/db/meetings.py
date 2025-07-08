@@ -15,8 +15,19 @@ def create_database() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS providers (
+                id TEXT PRIMARY KEY,
+                config TEXT
+            )
+        """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS authorities (
-                id TEXT PRIMARY KEY
+                id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                nice_name Text,
+                FOREIGN KEY (provider) REFERENCES providers(id)
             )
         """
         )
