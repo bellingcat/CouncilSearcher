@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import sqlite3
@@ -350,3 +351,34 @@ def search_meetings(
             )
 
         return formatted_results
+
+def add_provider(provider_id: str, config: dict | None = None) -> None:
+    """
+    Add a new provider to the database.
+    """
+
+    config_json = json.dumps(config) if config else None
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO providers (id, config)
+            VALUES (?, ?)
+        """,
+            (provider_id, config_json),
+        )
+
+
+def add_authority(
+    authority_id: str, provider_id: str, nice_name: str | None = None
+) -> None:
+    """
+    Add a new authority to the database.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO authorities (id, provider, nice_name)
+            VALUES (?, ?, ?)
+        """,
+            (authority_id, provider_id, nice_name),
+        )

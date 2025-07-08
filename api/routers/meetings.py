@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 # Local application imports
 from api.db import meetings
+from api.routers.auth import active_user, admin_user
 
 
 # API
@@ -68,3 +69,65 @@ async def available_authorities() -> JSONResponse:
 
     authorities_and_counts = meetings.get_authorities_and_transcript_counts()
     return JSONResponse(content=authorities_and_counts)
+
+
+@router.post("/meetings/add_authority", tags=["meetings"])
+async def add_authority(
+    current_user: admin_user,
+    authority: str,
+    nice_name: str,
+    provider: str,
+) -> JSONResponse:
+    """
+    Add a new authority to the database.
+
+    Parameters:
+    - authority: The name of the authority.
+    - provider: The name of the provider.
+    - nice_name: A user-friendly name for the authority.
+
+    Returns:
+    - JSON response indicating success or failure.
+    """
+
+    if not authority or not provider:
+        return JSONResponse(
+            content={"error": "Authority and provider are required"},
+            status_code=400,
+        )
+
+    try:
+        meetings.add_authority(authority, provider, nice_name)
+        return JSONResponse(content={"message": "Authority added successfully"})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/meetings/add_provider", tags=["meetings"])
+async def add_provider(
+    current_user: admin_user,
+    provider: str,
+    config: dict | None = None,
+) -> JSONResponse:
+    """
+    Add a new provider to the database.
+
+    Parameters:
+    - provider: The name of the provider.
+    - config: Optional; configuration for the provider.
+
+    Returns:
+    - JSON response indicating success or failure.
+    """
+
+    if not provider:
+        return JSONResponse(
+            content={"error": "Provider is required"},
+            status_code=400,
+        )
+
+    try:
+        meetings.add_provider(provider, config)
+        return JSONResponse(content={"message": "Provider added successfully"})
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
