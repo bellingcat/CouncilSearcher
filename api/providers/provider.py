@@ -6,7 +6,7 @@ class Provider:
 
     @staticmethod
     def create(
-        provider_name: str, db_path: str, authority: str, config: dict | None = None
+        provider_name: str, authority: str, config: dict | None = None
     ) -> "Provider":
         """
         Factory method to create a provider instance based on the provider name.
@@ -20,10 +20,9 @@ class Provider:
 
         SpecificProvider = provider_classes[provider_name.lower()]
 
-        return SpecificProvider(db_path=db_path, authority=authority, config=config)
+        return SpecificProvider(authority=authority, config=config)
 
-    def __init__(self, db_path: str, authority: str, config: dict | None = None):
-        self.db_path = db_path
+    def __init__(self, authority: str, config: dict | None = None):
         self.authority = authority
         self.config = config
 
