@@ -5,11 +5,14 @@ from typing import Literal, Union
 # Third-party libraries
 from fastapi import APIRouter, FastAPI, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Local application imports
 from api.db import meetings
 from api.providers.provider import Provider
 from api.routers.auth import active_user, admin_user
+
+scheduler = AsyncIOScheduler()
 
 
 # API
@@ -20,8 +23,10 @@ async def lifespan(app: FastAPI):
     """
     # Lines here will run when the app starts
     meetings.create_database()
+    scheduler.start()
     yield
     # Lines here will run when the app stops
+    scheduler.shutdown()
 
 
 router = APIRouter(lifespan=lifespan)
@@ -134,6 +139,11 @@ async def add_provider(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+# Load all meetings weekly and load new meetings daily
+@scheduler.scheduled_job(
+    "cron", day_of_week="sun", hour=2, minute=0, kwargs={"update": "all"}
+)
+@scheduler.scheduled_job("cron", hour=0, minute=0, kwargs={"update": "new"})
 def load_meetings(update: Literal["all", "new", "missing"] = "all") -> None:
 
     authorities_providers_configs = meetings.get_available_authorities_and_providers()
