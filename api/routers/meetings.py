@@ -1,6 +1,6 @@
 # Standard library
 from contextlib import asynccontextmanager
-from typing import Union
+from typing import Literal, Union
 
 # Third-party libraries
 from fastapi import APIRouter, FastAPI, Query, BackgroundTasks
@@ -134,29 +134,53 @@ async def add_provider(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-async def load_meetings_from_all_authorities() -> None:
+def load_meetings(update: Literal["all", "new", "missing"] = "all") -> None:
 
     authorities_providers_configs = meetings.get_available_authorities_and_providers()
 
     for authority, provider_name, config in authorities_providers_configs:
         provider = Provider.create(provider_name, authority, config)
         index = provider.build_index()
+        if update == "all":
+            # No filtering, load all meetings
+            pass
+        elif update == "new":
+            # Filter the index to only include new meetings
+            existing_meetings = meetings.get_meeting_ids(authority)
+            index = [
+                meeting
+                for meeting in index
+                if meeting.get("uid") not in existing_meetings
+            ]
+        elif update == "missing":
+            # Filter the index to meetings that are missing transcripts
+            meetings_with_transcripts = meetings.get_meeting_ids_with_transcripts(
+                authority
+            )
+            index = [
+                meeting
+                for meeting in index
+                if meeting.get("uid") not in meetings_with_transcripts
+            ]
+        else:
+            raise ValueError("Invalid update type. Use 'all', 'new', or 'missing'.")
 
         meetings.add_meetings_to_db(
             authority=authority, meetings=provider.get_meetings(index)
         )
 
 
-@router.post("/meetings/load_all", tags=["meetings"])
-async def trigger_load_meetings_from_all_authorities(
+@router.post("/meetings/load", tags=["meetings"])
+async def trigger_load_meetings(
     current_user: admin_user,
     background_tasks: BackgroundTasks,
+    update: Literal["all", "new", "missing"] = "all",
 ) -> JSONResponse:
     """
     Load meetings from all authorities into the database.
     This function is intended to be called periodically
     """
 
-    background_tasks.add_task(load_meetings_from_all_authorities)
+    background_tasks.add_task(load_meetings, update)
 
     return JSONResponse(content={"message": "Job submitted."})

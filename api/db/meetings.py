@@ -225,6 +225,37 @@ def get_transcript_and_meeting_counts(authority: str) -> tuple[int, int]:
     return transcripts_count, meetings_count
 
 
+def get_meeting_ids(authority: str) -> list[str]:
+    """
+    Get a list of meeting IDs for a given authority.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT uid FROM meetings WHERE authority = ?
+        """,
+            (authority,),
+        )
+        meeting_ids = [row[0] for row in cursor.fetchall()]
+    return meeting_ids
+
+
+def get_meeting_ids_with_transcripts(authority: str) -> list[str]:
+    """
+    Get a list of meeting IDs for a given authority that have transcripts.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT uid FROM meetings WHERE authority = ?
+            AND uid IN (SELECT uid FROM transcripts_fts)
+        """,
+            (authority,),
+        )
+        meeting_ids = [row[0] for row in cursor.fetchall()]
+    return meeting_ids
+
+
 def get_authorities_and_transcript_counts() -> dict[str, int]:
     """
     Get a list of authorities and their corresponding number of available transcripts.
