@@ -28,7 +28,8 @@ class PublicI(Provider):
         ## Get the list of meetings from the RSS feed
         feed = get_xml_dict(rss_url)
         unparsed_index = feed["rss"]["channel"].get("item", None)
-
+        if unparsed_index is None:
+            return []
         with ThreadPoolExecutor() as executor:
             results = list(
                 tqdm(
