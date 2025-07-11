@@ -17,7 +17,7 @@ class PublicI(Provider):
     Provider for PublicI meetings.
     """
 
-    def build_index(self) -> None:
+    def build_index(self) -> list[MeetingItem]:
         """
         Build the index for PublicI provider.
         """
@@ -27,21 +27,29 @@ class PublicI(Provider):
 
         ## Get the list of meetings from the RSS feed
         feed = get_xml_dict(rss_url)
-        self.index = feed["rss"]["channel"].get("item", None)
-        return
+        unparsed_index = feed["rss"]["channel"].get("item", None)
+        if unparsed_index is None:
+            return []
+        with ThreadPoolExecutor() as executor:
+            results = list(
+                tqdm(
+                    executor.map(self._build_index_item, unparsed_index),
+                    total=len(unparsed_index),
+                )
+            )
 
-    def get_meetings(self) -> list[MeetingItem]:
+        return results
+
+    def get_meetings(self, index: list[MeetingItem]) -> list[MeetingItem]:
         """
         Get meetings for PublicI provider.
         """
-        if self.index is None:
-            raise Exception("Index has not been built. Call build_index() first.")
 
         with ThreadPoolExecutor() as executor:
             results = list(
                 tqdm(
-                    executor.map(self._parse_index_item, self.index),
-                    total=len(self.index),
+                    executor.map(self._parse_index_item, index),
+                    total=len(index),
                 )
             )
 
@@ -75,8 +83,7 @@ class PublicI(Provider):
         rss_url = f"https://{authority}.public-i.tv/core/data/{authority_id}/archived/1/agenda/1"
         return transcript_url, rss_url
 
-    def _parse_index_item(self, full_item: dict) -> MeetingItem:
-        item = {}
+    def _build_index_item(self, full_item: dict) -> MeetingItem:
         title = full_item.get("title")
         description = full_item.get("description")
         tags = full_item.get("pi:tags")
@@ -112,10 +119,7 @@ class PublicI(Provider):
         if uid != link.split("/")[-1]:
             print(f"UID {uid} does not match link {link}")
 
-        transcript_url = self._transcript_url_template.format(uid=item["uid"])
-        transcript = get_text(transcript_url)
-
-        parsed_transcript = parse_vtt(transcript) if transcript else None
+        transcript_url = self._transcript_url_template.format(uid=uid)
 
         result = MeetingItem(
             title=title,
@@ -128,8 +132,25 @@ class PublicI(Provider):
             agenda=agenda,
             uid=uid,
             transcript_url=transcript_url,
+            transcript=None,
+            parsed_transcript=None,
+        )
+        return result
+
+    def _parse_index_item(self, index_item: MeetingItem) -> MeetingItem:
+
+        transcript_url = index_item.get("transcript_url")
+        if transcript_url is not None:
+            transcript = get_text(transcript_url)
+            parsed_transcript = parse_vtt(transcript) if transcript else None
+        else:
+            transcript = None
+            parsed_transcript = None
+
+        meeting_item = index_item.copy()
+        meeting_item.update(
             transcript=transcript,
             parsed_transcript=parsed_transcript,
         )
 
-        return result
+        return meeting_item

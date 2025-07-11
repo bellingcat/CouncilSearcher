@@ -1,5 +1,5 @@
+import json
 from pathlib import Path
-
 import sqlite3
 
 from api.models.meetings import MeetingItem
@@ -14,8 +14,19 @@ def create_database() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS providers (
+                id TEXT PRIMARY KEY,
+                config TEXT
+            )
+        """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS authorities (
-                id TEXT PRIMARY KEY
+                id TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                nice_name Text,
+                FOREIGN KEY (provider) REFERENCES providers(id)
             )
         """
         )
@@ -214,6 +225,37 @@ def get_transcript_and_meeting_counts(authority: str) -> tuple[int, int]:
     return transcripts_count, meetings_count
 
 
+def get_meeting_ids(authority: str) -> list[str]:
+    """
+    Get a list of meeting IDs for a given authority.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT uid FROM meetings WHERE authority = ?
+        """,
+            (authority,),
+        )
+        meeting_ids = [row[0] for row in cursor.fetchall()]
+    return meeting_ids
+
+
+def get_meeting_ids_with_transcripts(authority: str) -> list[str]:
+    """
+    Get a list of meeting IDs for a given authority that have transcripts.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT uid FROM meetings WHERE authority = ?
+            AND uid IN (SELECT uid FROM transcripts_fts)
+        """,
+            (authority,),
+        )
+        meeting_ids = [row[0] for row in cursor.fetchall()]
+    return meeting_ids
+
+
 def get_authorities_and_transcript_counts() -> dict[str, int]:
     """
     Get a list of authorities and their corresponding number of available transcripts.
@@ -350,3 +392,51 @@ def search_meetings(
             )
 
         return formatted_results
+
+
+def get_available_authorities_and_providers() -> list[tuple[str, str, dict | None]]:
+    """
+    Get a list of available authorities, corresponding providers, and configs.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            SELECT authorities.id, providers.id, providers.config
+            FROM authorities
+            JOIN providers ON authorities.provider = providers.id
+        """
+        )
+        authorities_providers_configs = cursor.fetchall()
+    return authorities_providers_configs
+
+
+def add_provider(provider_id: str, config: dict | None = None) -> None:
+    """
+    Add a new provider to the database.
+    """
+
+    config_json = json.dumps(config) if config else None
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO providers (id, config)
+            VALUES (?, ?)
+        """,
+            (provider_id, config_json),
+        )
+
+
+def add_authority(
+    authority_id: str, provider_id: str, nice_name: str | None = None
+) -> None:
+    """
+    Add a new authority to the database.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO authorities (id, provider, nice_name)
+            VALUES (?, ?, ?)
+        """,
+            (authority_id, provider_id, nice_name),
+        )

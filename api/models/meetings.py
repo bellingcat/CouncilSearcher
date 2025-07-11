@@ -8,15 +8,15 @@ class AgendaItem(TypedDict):
 
 
 class MeetingItem(TypedDict):
+    uid: str
+    link: str
     title: str | None
     description: str | None
     tags: str | None
     date: str | None  # Date in RFC 2822 format or None
     unixtime: int | None  # Unix timestamp or None
     datetime: str | None  # ISO format datetime or None
-    link: str
     agenda: list[AgendaItem] | None  # List of agenda items with id, text, and time
-    uid: str
     transcript_url: str | None
     transcript: str | None
     parsed_transcript: (
