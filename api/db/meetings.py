@@ -26,6 +26,8 @@ def create_database() -> None:
                 id TEXT PRIMARY KEY,
                 provider TEXT NOT NULL,
                 nice_name Text,
+                meeting_count INTEGER DEFAULT 0,
+                transcript_count INTEGER DEFAULT 0,
                 FOREIGN KEY (provider) REFERENCES providers(id)
             )
         """
@@ -196,33 +198,22 @@ def add_meetings_to_db(authority: str, meetings: list[MeetingItem]) -> None:
                 """,
                 (uid, full_transcript, uid),
             )
-
-
-def get_transcript_and_meeting_counts(authority: str) -> tuple[int, int]:
-
-    with sqlite3.connect(DB_PATH) as conn:
-        # Compare number of transcripts_fts and meetings
-        cursor = conn.execute(
+        # Update the meeting count and transcript count for the authority
+        conn.execute(
             """
-            SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
-                SELECT uid FROM meetings WHERE authority = ?
+            UPDATE authorities
+            SET meeting_count = (
+                SELECT COUNT(*) FROM meetings WHERE authority = id
+            ),
+            transcript_count = (
+                SELECT COUNT(*) FROM transcripts_fts WHERE uid IN (
+                    SELECT uid FROM meetings WHERE authority = id
+                )
             )
-        """,
+            WHERE id = ?
+            """,
             (authority,),
         )
-
-        transcripts_count = cursor.fetchone()[0]
-
-        cursor = conn.execute(
-            """
-            SELECT COUNT(*) FROM meetings WHERE authority = ?
-        """,
-            (authority,),
-        )
-
-        meetings_count = cursor.fetchone()[0]
-
-    return transcripts_count, meetings_count
 
 
 def get_meeting_ids(authority: str) -> list[str]:
@@ -263,13 +254,9 @@ def get_authorities_and_transcript_counts() -> dict[str, int]:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
             """
-            SELECT authority, COUNT(*) as transcript_count
+            SELECT id, transcript_count
             FROM authorities
-            JOIN meetings ON authorities.id = meetings.authority
-            WHERE meetings.uid IN (
-                SELECT uid FROM transcripts_fts
-            )
-            GROUP BY authority
+            ORDER BY id ASC
         """
         )
         authorities = {row[0]: row[1] for row in cursor.fetchall()}
