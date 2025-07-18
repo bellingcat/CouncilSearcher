@@ -124,7 +124,7 @@
                     clearable
                     class="mt-2 mb-0"
                     @keyup.enter="resetAndSearch"
-                    @click:clear="results = []"
+                    @click:clear="resetSearch"
                 >
                     <template #append-inner>
                         <v-btn
@@ -164,9 +164,11 @@
                     />
                 </v-col>
             </v-row>
-            <v-row v-if="results.length" class="my-0 py-0">
+            <v-row v-if="currentSearchQuery" class="my-0 py-0">
                 <v-col class="ma-0 pa-0" cols="auto">
-                    <div class="text-h4">Search Results</div>
+                    <div class="text-h4" id="search-results">
+                        Search Results
+                    </div>
                 </v-col>
                 <v-spacer />
                 <v-col class="ma-0 pa-0" cols="auto">
@@ -182,16 +184,40 @@
                     />
                 </v-col>
             </v-row>
-            <v-row v-if="results.length" class="mt-2">
+            <v-row v-if="loadingResults" class="mt-2 mb-2">
+                <v-col cols="12">
+                    <p class="text">
+                        Loading meetings...
+                        <v-progress-circular
+                            indeterminate
+                            color="primary"
+                            class="ml-2"
+                        />
+                    </p>
+                </v-col>
+            </v-row>
+            <v-row
+                v-if="results.length"
+                class="mt-2"
+                :class="{ 'search-results-loading': loadingResults }"
+            >
                 <template v-for="result in results" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
+            </v-row>
+            <v-row v-if="totalResults == 0 && currentSearchQuery" class="mt-2">
+                <v-col cols="12">
+                    <p class="text-center">
+                        No results found for "{{ currentSearchQuery }}". Try
+                        changing your search terms or filters.
+                    </p>
+                </v-col>
             </v-row>
             <v-row v-if="totalResults > pageSize" class="justify-center mt-4">
                 <v-pagination
                     v-model="page"
                     :length="Math.ceil(totalResults / pageSize)"
-                    @update:model-value="performSearch"
+                    @update:model-value="pageAndSearch"
                     :total-visible="7"
                 />
             </v-row>
@@ -200,13 +226,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { useDate } from "vuetify";
 import axios from "axios";
 
 const searchQuery = ref("");
+const currentSearchQuery = ref("");
+const loadingResults = ref(false);
 const results = ref([]);
-const totalResults = ref(0);
+const totalResults = ref(null);
 const page = ref(1);
 const pageSize = ref(10);
 const selectedAuthorities = ref([]);
@@ -266,6 +294,7 @@ function getSortByParam() {
 }
 
 const performSearch = async () => {
+    loadingResults.value = true;
     try {
         const authorityParams = selectedAuthorities.value
             .map((authority) => `authority=${encodeURIComponent(authority)}`)
@@ -290,21 +319,56 @@ const performSearch = async () => {
         }${
             dateParams ? `&${dateParams}` : ""
         }&${sortByParam}&${limitParam}&${offsetParam}`;
+        currentSearchQuery.value = searchQuery.value;
         const response = await axios.get(
             `http://127.0.0.1:5000/meetings/search?${queryParams}`
         );
         results.value = response.data.results || [];
         totalResults.value = response.data.total || 0;
+        loadingResults.value = false;
     } catch (error) {
         console.error("Error fetching search results:", error);
+        loadingResults.value = false;
     }
 };
 
+function resetSearch() {
+    searchQuery.value = "";
+    currentSearchQuery.value = "";
+    results.value = [];
+    totalResults.value = null;
+    page.value = 1;
+}
+
 // Reset to page 1 when filters/search change
 function resetAndSearch() {
+    results.value = [];
+    totalResults.value = null;
     page.value = 1;
+    performSearch();
+}
+
+async function pageAndSearch() {
+    await nextTick();
+    // Scroll to top of results after fetching new page
+    const resultsHeader = document.querySelector("#search-results");
+    if (resultsHeader) {
+        resultsHeader.scrollIntoView({
+            behavior: "instant",
+            block: "start",
+        });
+    }
+
     performSearch();
 }
 
 fetchAuthorities();
 </script>
+
+<style scoped>
+.search-results-loading {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+</style>
