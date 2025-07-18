@@ -176,14 +176,14 @@
                         label="Sort by"
                         outlined
                         class="mt-2 mb-2"
-                        @change="sortResults"
+                        @update:model-value="performSearch"
                         hide-details="true"
                         density="compact"
                     />
                 </v-col>
             </v-row>
             <v-row v-if="results.length" class="mt-2">
-                <template v-for="result in sortedResults" :key="result.link">
+                <template v-for="result in results" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
             </v-row>
@@ -229,17 +229,6 @@ const filteredAuthorities = computed(() => {
     );
 });
 
-const sortedResults = computed(() => {
-    if (sortOption.value === "Best Match") {
-        return [...results.value].sort((a, b) => b.rank - a.rank);
-    } else if (sortOption.value === "Date (newest first)") {
-        return [...results.value].sort((a, b) => b.unixtime - a.unixtime);
-    } else if (sortOption.value === "Date (oldest first)") {
-        return [...results.value].sort((a, b) => a.unixtime - b.unixtime);
-    }
-    return results.value;
-});
-
 const fetchAuthorities = async () => {
     try {
         const response = await axios.get(
@@ -256,6 +245,14 @@ const fetchAuthorities = async () => {
         loadingAuthorities.value = false;
     }
 };
+
+// Map UI sort option to API sort_by param
+function getSortByParam() {
+    if (sortOption.value === "Best Match") return "relevance";
+    if (sortOption.value === "Date (newest first)") return "date_desc";
+    if (sortOption.value === "Date (oldest first)") return "date_asc";
+    return "relevance";
+}
 
 const performSearch = async () => {
     try {
@@ -274,21 +271,17 @@ const performSearch = async () => {
         ]
             .filter(Boolean)
             .join("&");
+        const sortByParam = `sort_by=${getSortByParam()}`;
         const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
             authorityParams ? `&${authorityParams}` : ""
-        }${dateParams ? `&${dateParams}` : ""}`;
+        }${dateParams ? `&${dateParams}` : ""}&${sortByParam}`;
         const response = await axios.get(
             `http://127.0.0.1:5000/meetings/search?${queryParams}`
         );
-        results.value = response.data;
+        results.value = response.data.results || [];
     } catch (error) {
         console.error("Error fetching search results:", error);
     }
-};
-
-const sortResults = () => {
-    // Trigger reactivity for sorting
-    sortedResults.value;
 };
 
 fetchAuthorities();
