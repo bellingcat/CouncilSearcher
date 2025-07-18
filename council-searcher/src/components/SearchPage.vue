@@ -123,14 +123,14 @@
                     outlined
                     clearable
                     class="mt-2 mb-0"
-                    @keyup.enter="performSearch"
+                    @keyup.enter="resetAndSearch"
                     @click:clear="results = []"
                 >
                     <template #append-inner>
                         <v-btn
                             variant="flat"
                             color="primary"
-                            @click="performSearch"
+                            @click="resetAndSearch"
                         >
                             Search
                         </v-btn>
@@ -147,7 +147,7 @@
                         density="compact"
                         :display-format="formatAsIso"
                         placeholder="yyyy-mm-dd"
-                        @update:model-value="performSearch"
+                        @update:model-value="resetAndSearch"
                     />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -160,7 +160,7 @@
                         density="compact"
                         :display-format="formatAsIso"
                         placeholder="yyyy-mm-dd"
-                        @update:model-value="performSearch"
+                        @update:model-value="resetAndSearch"
                     />
                 </v-col>
             </v-row>
@@ -176,7 +176,7 @@
                         label="Sort by"
                         outlined
                         class="mt-2 mb-2"
-                        @update:model-value="performSearch"
+                        @update:model-value="resetAndSearch"
                         hide-details="true"
                         density="compact"
                     />
@@ -186,6 +186,14 @@
                 <template v-for="result in results" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
+            </v-row>
+            <v-row v-if="totalResults > pageSize" class="justify-center mt-4">
+                <v-pagination
+                    v-model="page"
+                    :length="Math.ceil(totalResults / pageSize)"
+                    @update:model-value="performSearch"
+                    :total-visible="7"
+                />
             </v-row>
         </v-responsive>
     </v-container>
@@ -198,6 +206,9 @@ import axios from "axios";
 
 const searchQuery = ref("");
 const results = ref([]);
+const totalResults = ref(0);
+const page = ref(1);
+const pageSize = ref(10);
 const selectedAuthorities = ref([]);
 const authorities = ref({});
 const sortOption = ref("Best Match");
@@ -272,17 +283,28 @@ const performSearch = async () => {
             .filter(Boolean)
             .join("&");
         const sortByParam = `sort_by=${getSortByParam()}`;
+        const limitParam = `limit=${pageSize.value}`;
+        const offsetParam = `offset=${(page.value - 1) * pageSize.value}`;
         const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
             authorityParams ? `&${authorityParams}` : ""
-        }${dateParams ? `&${dateParams}` : ""}&${sortByParam}`;
+        }${
+            dateParams ? `&${dateParams}` : ""
+        }&${sortByParam}&${limitParam}&${offsetParam}`;
         const response = await axios.get(
             `http://127.0.0.1:5000/meetings/search?${queryParams}`
         );
         results.value = response.data.results || [];
+        totalResults.value = response.data.total || 0;
     } catch (error) {
         console.error("Error fetching search results:", error);
     }
 };
+
+// Reset to page 1 when filters/search change
+function resetAndSearch() {
+    page.value = 1;
+    performSearch();
+}
 
 fetchAuthorities();
 </script>
