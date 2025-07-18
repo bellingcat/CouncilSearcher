@@ -38,6 +38,9 @@ async def search_meetings(
     authority: Union[list[str], None] = Query(None),
     startdate: Union[str, None] = None,
     enddate: Union[str, None] = None,
+    sort_by: Literal["relevance", "date_asc", "date_desc"] = "relevance",
+    limit: Union[int, None] = None,
+    offset: int = 0,
 ) -> JSONResponse:
     """
     Endpoint to search meeting transcript.
@@ -62,6 +65,9 @@ async def search_meetings(
         authority=authority,
         startdate=startdate,
         enddate=enddate,
+        sort_by=sort_by,
+        limit=limit,
+        offset=offset,
     )
 
     return JSONResponse(content=results)
