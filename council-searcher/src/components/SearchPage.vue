@@ -165,13 +165,24 @@
                 </v-col>
             </v-row>
             <v-row v-if="currentSearchQuery" class="my-0 py-0">
-                <v-col class="ma-0 pa-0" cols="auto">
+                <v-col class="ma-0 pa-0 align-result-heading" cols="auto">
                     <div class="text-h4" id="search-results">
                         Search Results
                     </div>
                 </v-col>
+                <v-col
+                    class="ml-5 mtb-0 pa-0 align-result-heading"
+                    cols="auto"
+                    v-if="totalResults"
+                >
+                    <p class="text">
+                        {{ totalResults }} results found for "{{
+                            currentSearchQuery
+                        }}"
+                    </p>
+                </v-col>
                 <v-spacer />
-                <v-col class="ma-0 pa-0" cols="auto">
+                <v-col class="ma-0 pa-0 align-result-heading" cols="auto">
                     <v-select
                         v-model="sortOption"
                         :items="sortOptions"
@@ -370,5 +381,9 @@ fetchAuthorities();
     opacity: 0.5;
     pointer-events: none;
     transition: opacity 0.2s;
+}
+
+.align-result-heading {
+    align-content: center;
 }
 </style>
