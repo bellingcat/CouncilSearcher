@@ -123,14 +123,14 @@
                     outlined
                     clearable
                     class="mt-2 mb-0"
-                    @keyup.enter="performSearch"
-                    @click:clear="results = []"
+                    @keyup.enter="resetAndSearch"
+                    @click:clear="resetSearch"
                 >
                     <template #append-inner>
                         <v-btn
                             variant="flat"
                             color="primary"
-                            @click="performSearch"
+                            @click="resetAndSearch"
                         >
                             Search
                         </v-btn>
@@ -147,7 +147,7 @@
                         density="compact"
                         :display-format="formatAsIso"
                         placeholder="yyyy-mm-dd"
-                        @update:model-value="performSearch"
+                        @update:model-value="resetAndSearch"
                     />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -160,44 +160,94 @@
                         density="compact"
                         :display-format="formatAsIso"
                         placeholder="yyyy-mm-dd"
-                        @update:model-value="performSearch"
+                        @update:model-value="resetAndSearch"
                     />
                 </v-col>
             </v-row>
-            <v-row v-if="results.length" class="my-0 py-0">
-                <v-col class="ma-0 pa-0" cols="auto">
-                    <div class="text-h4">Search Results</div>
+            <v-row v-if="currentSearchQuery" class="my-0 py-0">
+                <v-col class="ma-0 pa-0 align-result-heading" cols="auto">
+                    <div class="text-h4" id="search-results">
+                        Search Results
+                    </div>
+                </v-col>
+                <v-col
+                    class="ml-5 mtb-0 pa-0 align-result-heading"
+                    cols="auto"
+                    v-if="totalResults"
+                >
+                    <p class="text">
+                        {{ totalResults }} results found for "{{
+                            currentSearchQuery
+                        }}"
+                    </p>
                 </v-col>
                 <v-spacer />
-                <v-col class="ma-0 pa-0" cols="auto">
+                <v-col class="ma-0 pa-0 align-result-heading" cols="auto">
                     <v-select
                         v-model="sortOption"
                         :items="sortOptions"
                         label="Sort by"
                         outlined
                         class="mt-2 mb-2"
-                        @change="sortResults"
+                        @update:model-value="resetAndSearch"
                         hide-details="true"
                         density="compact"
                     />
                 </v-col>
             </v-row>
-            <v-row v-if="results.length" class="mt-2">
-                <template v-for="result in sortedResults" :key="result.link">
+            <v-row v-if="loadingResults" class="mt-2 mb-2">
+                <v-col cols="12">
+                    <p class="text">
+                        Loading meetings...
+                        <v-progress-circular
+                            indeterminate
+                            color="primary"
+                            class="ml-2"
+                        />
+                    </p>
+                </v-col>
+            </v-row>
+            <v-row
+                v-if="results.length"
+                class="mt-2"
+                :class="{ 'search-results-loading': loadingResults }"
+            >
+                <template v-for="result in results" :key="result.link">
                     <SearchResultCard :result="result" />
                 </template>
+            </v-row>
+            <v-row v-if="totalResults == 0 && currentSearchQuery" class="mt-2">
+                <v-col cols="12">
+                    <p class="text-center">
+                        No results found for "{{ currentSearchQuery }}". Try
+                        changing your search terms or filters.
+                    </p>
+                </v-col>
+            </v-row>
+            <v-row v-if="totalResults > pageSize" class="justify-center mt-4">
+                <v-pagination
+                    v-model="page"
+                    :length="Math.ceil(totalResults / pageSize)"
+                    @update:model-value="pageAndSearch"
+                    :total-visible="7"
+                />
             </v-row>
         </v-responsive>
     </v-container>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { useDate } from "vuetify";
 import axios from "axios";
 
 const searchQuery = ref("");
+const currentSearchQuery = ref("");
+const loadingResults = ref(false);
 const results = ref([]);
+const totalResults = ref(null);
+const page = ref(1);
+const pageSize = ref(10);
 const selectedAuthorities = ref([]);
 const authorities = ref({});
 const sortOption = ref("Best Match");
@@ -229,17 +279,6 @@ const filteredAuthorities = computed(() => {
     );
 });
 
-const sortedResults = computed(() => {
-    if (sortOption.value === "Best Match") {
-        return [...results.value].sort((a, b) => b.rank - a.rank);
-    } else if (sortOption.value === "Date (newest first)") {
-        return [...results.value].sort((a, b) => b.unixtime - a.unixtime);
-    } else if (sortOption.value === "Date (oldest first)") {
-        return [...results.value].sort((a, b) => a.unixtime - b.unixtime);
-    }
-    return results.value;
-});
-
 const fetchAuthorities = async () => {
     try {
         const response = await axios.get(
@@ -257,7 +296,16 @@ const fetchAuthorities = async () => {
     }
 };
 
+// Map UI sort option to API sort_by param
+function getSortByParam() {
+    if (sortOption.value === "Best Match") return "relevance";
+    if (sortOption.value === "Date (newest first)") return "date_desc";
+    if (sortOption.value === "Date (oldest first)") return "date_asc";
+    return "relevance";
+}
+
 const performSearch = async () => {
+    loadingResults.value = true;
     try {
         const authorityParams = selectedAuthorities.value
             .map((authority) => `authority=${encodeURIComponent(authority)}`)
@@ -274,22 +322,68 @@ const performSearch = async () => {
         ]
             .filter(Boolean)
             .join("&");
+        const sortByParam = `sort_by=${getSortByParam()}`;
+        const limitParam = `limit=${pageSize.value}`;
+        const offsetParam = `offset=${(page.value - 1) * pageSize.value}`;
         const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
             authorityParams ? `&${authorityParams}` : ""
-        }${dateParams ? `&${dateParams}` : ""}`;
+        }${
+            dateParams ? `&${dateParams}` : ""
+        }&${sortByParam}&${limitParam}&${offsetParam}`;
+        currentSearchQuery.value = searchQuery.value;
         const response = await axios.get(
             `http://127.0.0.1:5000/meetings/search?${queryParams}`
         );
-        results.value = response.data;
+        results.value = response.data.results || [];
+        totalResults.value = response.data.total || 0;
+        loadingResults.value = false;
     } catch (error) {
         console.error("Error fetching search results:", error);
+        loadingResults.value = false;
     }
 };
 
-const sortResults = () => {
-    // Trigger reactivity for sorting
-    sortedResults.value;
-};
+function resetSearch() {
+    searchQuery.value = "";
+    currentSearchQuery.value = "";
+    results.value = [];
+    totalResults.value = null;
+    page.value = 1;
+}
+
+// Reset to page 1 when filters/search change
+function resetAndSearch() {
+    results.value = [];
+    totalResults.value = null;
+    page.value = 1;
+    performSearch();
+}
+
+async function pageAndSearch() {
+    await nextTick();
+    // Scroll to top of results after fetching new page
+    const resultsHeader = document.querySelector("#search-results");
+    if (resultsHeader) {
+        resultsHeader.scrollIntoView({
+            behavior: "instant",
+            block: "start",
+        });
+    }
+
+    performSearch();
+}
 
 fetchAuthorities();
 </script>
+
+<style scoped>
+.search-results-loading {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.align-result-heading {
+    align-content: center;
+}
+</style>

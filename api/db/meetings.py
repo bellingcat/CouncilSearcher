@@ -263,16 +263,25 @@ def get_authorities_and_transcript_counts() -> dict[str, int]:
     return authorities
 
 
-def build_query_string(
+def build_count_and_query_string(
     query: str,
     authority: list[str] | None = None,
     startdate: str | None = None,
     enddate: str | None = None,
-) -> tuple[str, list[str]]:
+    sort_by: str = "relevance",
+    limit: int | None = None,
+    offset: int | None = None,
+) -> tuple[str, str, list[str], list[str]]:
 
     params = [query]
 
     # Search for the phrase in the transcripts using FTS
+    count_string = """
+        SELECT COUNT(*) 
+        FROM transcripts_fts
+        WHERE transcript MATCH ?
+    """
+
     query_string = """
         SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
         FROM transcripts_fts
@@ -281,34 +290,55 @@ def build_query_string(
 
     # Filter by authority if provided
     if authority:
-        query_string += """
+        authority_filter = """
             AND uid IN (
                 SELECT uid FROM meetings WHERE authority IN ({})
             )
         """.format(
             ",".join("?" for _ in authority)
         )
+
+        query_string += authority_filter
+        count_string += authority_filter
         params.extend(authority)
 
     # Filter by startdate and enddate if provided
     if startdate:
-        query_string += """
+        startdate_filter = """
             AND uid IN (
                 SELECT uid FROM meetings WHERE datetime >= ?
             )
         """
+        query_string += startdate_filter
+        count_string += startdate_filter
         params.append(startdate)
 
     if enddate:
-        query_string += """
+        enddate_filter = """
             AND uid IN (
                 SELECT uid FROM meetings WHERE datetime <= ?
             )
         """
+        query_string += enddate_filter
+        count_string += enddate_filter
         params.append(enddate)
 
-    query_string += " ORDER BY bm25(transcripts_fts)"
-    return query_string, params
+    # Sort results based on the sort_by parameter
+    if sort_by == "date_asc":
+        query_string += " ORDER BY (SELECT datetime FROM meetings WHERE meetings.uid = transcripts_fts.uid) ASC"
+    elif sort_by == "date_desc":
+        query_string += " ORDER BY (SELECT datetime FROM meetings WHERE meetings.uid = transcripts_fts.uid) DESC"
+    else:  # Default to relevance
+        query_string += " ORDER BY bm25(transcripts_fts)"
+
+    # Add pagination if limit and offset are provided
+    if limit is not None and offset is not None:
+        query_string += " LIMIT ? OFFSET ?"
+        query_params = params + [str(limit), str(offset)]
+    else:
+        query_params = params
+
+    return count_string, query_string, params, query_params
 
 
 def search_meetings(
@@ -316,69 +346,91 @@ def search_meetings(
     authority: list[str] | None = None,
     startdate: str | None = None,
     enddate: str | None = None,
-) -> list[dict]:
+    sort_by: str = "relevance",
+    limit: int | None = None,
+    offset: int = 0,
+) -> dict:
     """
     Search for meetings based on the query string.
-    Returns a list of dictionaries with meeting details.
+    Returns a dict with 'results' (list of meeting details) and 'total' (total number of matches).
     """
 
-    query_string, params = build_query_string(
-        query=query,
-        authority=authority,
-        startdate=startdate,
-        enddate=enddate,
+    count_string, query_string, count_params, query_params = (
+        build_count_and_query_string(
+            query=query,
+            authority=authority,
+            startdate=startdate,
+            enddate=enddate,
+            sort_by=sort_by,
+            limit=limit,
+            offset=offset,
+        )
     )
 
     with sqlite3.connect(DB_PATH) as conn:
-        results = conn.execute(query_string, params).fetchall()
+        total = conn.execute(count_string, count_params).fetchone()[0]
+        results = conn.execute(query_string, query_params).fetchall()
+
+        # To efficiently find the closest timestamp to the match snippet we remove the
+        # brackets from the snippet and find the offset in the transcript
+
+        offset_requests = []
+        snippet_map = {}
+        rank_map = {}
+
+        for uid, snippet, rank, transcript in results:
+            snippet_cleaned = snippet.replace("[", "").replace("]", "")
+            offset_val = transcript.find(snippet_cleaned)
+            offset_requests.append((uid, offset_val))
+            snippet_map[(uid, offset_val)] = snippet
+            rank_map[(uid, offset_val)] = rank
 
         formatted_results = []
-        for result in results:
-            # Calculate the start time from the offset
-            uid, snippet, rank, transcript = result
-            # Use the matched snippet to find the offset in the full transcript
-            snippet_cleaned = snippet.replace("[", "").replace("]", "")
 
-            offset = transcript.find(snippet_cleaned)
+        if offset_requests:
+            # For each (uid, offset_val), fetch the closest offset <= offset_val and join meeting metadata
+            batch_results = []
+            for uid, offset_val in offset_requests:
+                row = conn.execute(
+                    """
+                    SELECT o.start_time, o.start_time_seconds, m.title, m.datetime, m.unixtime, m.link, m.authority
+                    FROM offsets o
+                    JOIN meetings m ON o.uid = m.uid
+                    WHERE o.uid = ? AND o.offset <= ?
+                    ORDER BY o.offset DESC
+                    LIMIT 1
+                    """,
+                    (uid, offset_val),
+                ).fetchone()
+                if row:
+                    batch_results.append((uid, offset_val, *row))
 
-            # Get the largest offset less than the current offset
-            cursor = conn.execute(
-                """
-                SELECT start_time, start_time_seconds FROM offsets
-                WHERE uid = ? AND offset <= ? ORDER BY offset DESC LIMIT 1
-            """,
-                (uid, offset),
-            )
+            for (
+                uid,
+                offset_val,
+                start_time,
+                start_time_seconds,
+                title,
+                datetime,
+                unixtime,
+                link,
+                authority,
+            ) in batch_results:
+                meeting_link = f"{link}/start_time/{1000*start_time_seconds}"
+                formatted_results.append(
+                    {
+                        "title": title,
+                        "datetime": datetime,
+                        "unixtime": unixtime,
+                        "snippet": snippet_map[(uid, offset_val)],
+                        "start_time": start_time,
+                        "rank": rank_map[(uid, offset_val)],
+                        "link": meeting_link,
+                        "authority": authority,
+                    }
+                )
 
-            start_time, start_time_seconds = cursor.fetchone()
-
-            # Fetch the link from the meetings table matching the uid
-            meeting_cursor = conn.execute(
-                """
-                SELECT title, datetime, unixtime, link, authority FROM meetings
-                WHERE uid = ?
-            """,
-                (uid,),
-            )
-            meeting_title, datetime, unixtime, meeting_link, authority_result = (
-                meeting_cursor.fetchone()
-            )
-            meeting_link = f"{meeting_link}/start_time/{1000*start_time_seconds}"
-
-            formatted_results.append(
-                {
-                    "title": meeting_title,
-                    "datetime": datetime,
-                    "unixtime": unixtime,
-                    "snippet": snippet,
-                    "start_time": start_time,
-                    "rank": rank,
-                    "link": meeting_link,
-                    "authority": authority_result,
-                }
-            )
-
-        return formatted_results
+        return {"results": formatted_results, "total": total}
 
 
 def get_available_authorities_and_providers() -> list[tuple[str, str, dict | None]]:
