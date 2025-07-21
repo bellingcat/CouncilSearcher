@@ -1,0 +1,12 @@
+services:
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - "5000:5000"
+        volumes:
+            - ./api/data:/code/api/data
+        environment:
+            - PYTHONUNBUFFERED=1
+        command: ["fastapi", "run", "api/API.py", "--port", "5000"]
