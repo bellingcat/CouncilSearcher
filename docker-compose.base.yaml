@@ -1,0 +1,12 @@
+services:
+    traefik:
+        image: traefik:v3.4
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        volumes:
+            - ./api/data:/code/api/data
+        command: ["fastapi", "run", "api/API.py", "--port", "5000"]
