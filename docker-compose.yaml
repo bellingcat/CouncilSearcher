@@ -4,6 +4,11 @@ services:
         command:
             - "--providers.docker=true"
             - "--entrypoints.web.address=:80"
+            - "--entrypoints.websecure.address=:443"
+            # Redirect HTTP to HTTPS
+            - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+            - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+            - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
         ports:
             - "80:80"
             - "443:443"
@@ -20,4 +25,5 @@ services:
             - "traefik.enable=true"
             - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`)"
             - "traefik.http.services.api.loadbalancer.server.port=5000"
-            - "traefik.http.routers.api.entrypoints=web"
+            - "traefik.http.routers.api.entrypoints=websecure"
+            - "traefik.http.routers.api.tls=true"
