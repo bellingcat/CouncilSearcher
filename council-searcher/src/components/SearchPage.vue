@@ -241,7 +241,7 @@ import { ref, computed, nextTick } from "vue";
 import { useDate } from "vuetify";
 import axios from "axios";
 
-const API_BASE = process.env.VUE_APP_API_BASEURL;
+const API_BASE = import.meta.env.VITE_API_BASEURL;
 const searchQuery = ref("");
 const currentSearchQuery = ref("");
 const loadingResults = ref(false);
