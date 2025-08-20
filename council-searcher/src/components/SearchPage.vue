@@ -241,6 +241,7 @@ import { ref, computed, nextTick } from "vue";
 import { useDate } from "vuetify";
 import axios from "axios";
 
+const API_BASE = process.env.VUE_APP_API_BASEURL;
 const searchQuery = ref("");
 const currentSearchQuery = ref("");
 const loadingResults = ref(false);
@@ -282,7 +283,7 @@ const filteredAuthorities = computed(() => {
 const fetchAuthorities = async () => {
     try {
         const response = await axios.get(
-            "http://127.0.0.1:5000/meetings/transcript_counts_by_authority"
+            API_BASE + "/meetings/transcript_counts_by_authority"
         );
         if (response.status !== 200) {
             errorLoadingAuthorities.value = true;
@@ -332,7 +333,7 @@ const performSearch = async () => {
         }&${sortByParam}&${limitParam}&${offsetParam}`;
         currentSearchQuery.value = searchQuery.value;
         const response = await axios.get(
-            `http://127.0.0.1:5000/meetings/search?${queryParams}`
+            API_BASE+`/meetings/search?${queryParams}`
         );
         results.value = response.data.results || [];
         totalResults.value = response.data.total || 0;
