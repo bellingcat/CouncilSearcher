@@ -1,5 +1,10 @@
+fastapi[standard]
+apscheduler
+pydantic
 requests
 xmltodict
+bs4
 tqdm
-flask
-flask-cors
+passlib
+pyjwt
+argon2_cffi

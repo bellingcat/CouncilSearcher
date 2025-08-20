@@ -1,0 +1,21 @@
+services:
+    traefik:
+        image: traefik:v3.4
+        volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        volumes:
+            - ./api/data:/code/api/data
+        secrets:
+            - admin_user
+            - admin_password
+        command: ["fastapi", "run", "api/API.py", "--port", "5000"]
+
+secrets:
+    admin_user:
+        file: ./secrets/admin_user.txt
+    admin_password:
+        file: ./secrets/admin_password.txt

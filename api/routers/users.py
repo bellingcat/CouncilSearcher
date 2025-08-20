@@ -56,8 +56,12 @@ def confirm_details(username: str, full_name: str, email: str) -> bool:
 def create_admin_user() -> UserInDB:
 
     # Check environment variables for admin user details
-    username = getenv("ADMIN_USERNAME", "")
-    password = getenv("ADMIN_PASSWORD", "")
+    #  Load from Docker secrets if available
+    with open("/run/secrets/admin_user", "r") as f:
+        username = f.read().strip()
+    with open("/run/secrets/admin_password", "r") as f:
+        password = f.read().strip()
+
     full_name = getenv("ADMIN_FULL_NAME", "")
     email = getenv("ADMIN_EMAIL", "")
 
