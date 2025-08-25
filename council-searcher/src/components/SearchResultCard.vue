@@ -10,7 +10,7 @@
         </v-card-subtitle>
         <v-card-actions class="d-flex justify-space-between">
             <v-btn
-                prepend-icon="mdi-video"
+                prepend-icon="$mdiVideo"
                 :href="result.link"
                 target="_blank"
                 variant="tonal"
