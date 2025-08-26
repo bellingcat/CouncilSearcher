@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import sqlite3
 
 from api.models.meetings import MeetingItem
@@ -262,6 +263,12 @@ def get_authorities_and_transcript_counts() -> dict[str, int]:
         authorities = {row[0]: row[1] for row in cursor.fetchall()}
     return authorities
 
+clean_query = re.compile(r'[^a-zA-Z0-9"]')
+def sanitize_query(query: str) -> str:
+    text = clean_query.sub(' ', query)
+    if text.count('"') % 2 == 1:
+        text = text.replace('"', '')
+    return text
 
 def build_count_and_query_string(
     query: str,
@@ -273,7 +280,7 @@ def build_count_and_query_string(
     offset: int | None = None,
 ) -> tuple[str, str, list[str], list[str]]:
 
-    params = [query]
+    params = [sanitize_query(query)]
 
     # Search for the phrase in the transcripts using FTS
     count_string = """
