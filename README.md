@@ -20,11 +20,33 @@ To add support for a new provider, subclass `api/providers/provider.py` and impl
 
 ### API
 
+#### Docker
+
+The API can be developed and deployed with docker:
+
+```sh
+docker compose -f docker-compose.base.yaml -f docker-compose.dev.yaml build
+docker compose -f docker-compose.base.yaml -f docker-compose.dev.yaml up
+```
+
+In production:
+
+```sh
+docker compose -f docker-compose.base.yaml -f docker-compose.prod.yaml build
+docker compose -f docker-compose.base.yaml -f docker-compose.prod.yaml up -D
+```
+
+Make sure to add an `admin_password.txt` and `admin_user.txt` to the `secrets` directory in the project root.
+
+The api domain can be set with `TRAEFIK_DOMAIN` in the `.env` file. For deployment, `TRAEFIK_SSLEMAIL` should also be set for automatic SSL provisioning via letsencrypt.
+
+#### fastAPI
+
 The API uses [fastAPI](https://fastapi.tiangolo.com/fastapi-cli/) and can be initialised with
 
 ```sh
 fastapi dev api/API.py
-``` 
+```
 
 Use `fastapi run api/API.py` for deployment.
 
@@ -47,3 +69,5 @@ Other standard vite scripts are available:
 And linting can be carried out with:
 
 `npm run lint`
+
+Separate development and production environment files, `council-searcher/.env.development` and `council-searcher/.env.production`, can be used to set the desired API endpoint to be used by the front-end.
