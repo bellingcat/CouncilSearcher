@@ -1,0 +1,67 @@
+{
+    "name": "Bellingcat Council Meeting Transcript Search",
+    "short_name": "Bellingcat Council Search",
+    "description": "Find verbatim quotes from council meetings in the UK and Ireland using this free open source research tool by Bellingcat.",
+    "icons": [
+        {
+            "src": "/icons/16.png",
+            "sizes": "16x16",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/24.png",
+            "sizes": "24x24",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/32.png",
+            "sizes": "32x32",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/57.png",
+            "sizes": "57x57",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/64.png",
+            "sizes": "64x64",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/72.png",
+            "sizes": "72x72",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/96.png",
+            "sizes": "96x96",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/120.png",
+            "sizes": "120x120",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/144.png",
+            "sizes": "144x144",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/152.png",
+            "sizes": "152x152",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/180.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/228.png",
+            "sizes": "228x228",
+            "type": "image/png"
+        }
+    ]
+}
