@@ -10,6 +10,7 @@
                         class="mb-0 mt-4"
                         height="3em"
                         src="@/assets/bellingcat.svg"
+                        alt="Bellingcat logo"
                     />
                     <h1 class="mb-6 py-2 font-weight-bold">
                         Council Meeting Transcript Search
@@ -333,7 +334,7 @@ const performSearch = async () => {
         }&${sortByParam}&${limitParam}&${offsetParam}`;
         currentSearchQuery.value = searchQuery.value;
         const response = await axios.get(
-            API_BASE+`/meetings/search?${queryParams}`
+            API_BASE + `/meetings/search?${queryParams}`
         );
         results.value = response.data.results || [];
         totalResults.value = response.data.total || 0;
