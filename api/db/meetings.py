@@ -278,22 +278,20 @@ def build_count_and_query_string(
     sort_by: str = "relevance",
     limit: int | None = None,
     offset: int | None = None,
+    exact_match: bool = False
 ) -> tuple[str, str, list[str], list[str]]:
 
     params = [sanitize_query(query)]
-
-    # Search for the phrase in the transcripts using FTS
     count_string = """
-        SELECT COUNT(*) 
-        FROM transcripts_fts
-        WHERE transcript MATCH ?
-    """
-
+            SELECT COUNT(*) 
+            FROM transcripts_fts
+            WHERE transcript MATCH ?
+        """
     query_string = """
-        SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
-        FROM transcripts_fts
-        WHERE transcript MATCH ?
-    """
+            SELECT uid, snippet(transcripts_fts, 1, '[', ']', '', 70) AS snippet, rank, transcript
+            FROM transcripts_fts
+            WHERE transcript MATCH ?
+        """
 
     # Filter by authority if provided
     if authority:
@@ -347,6 +345,46 @@ def build_count_and_query_string(
 
     return count_string, query_string, params, query_params
 
+def generate_exact_snippet(transcript: str, query: str, context_length: int = 70) -> str:
+    """Generate snippet that shows where the exact word match is."""
+    word_pattern = re.compile(r'\b' + re.escape(query.strip()) + r'\b', re.IGNORECASE)
+    match = word_pattern.search(transcript)
+    
+  
+    if not match:
+        return transcript[:context_length * 2]  
+    
+    # Get position of match
+    match_start = match.start()
+    match_end = match.end()
+        
+    # Extract context and highlight
+    start = max(0, match_start - context_length)
+    end = min(len(transcript), match_end + context_length)
+    
+    snippet = transcript[start:end]
+    snippet = word_pattern.sub(r'[\g<0>]', snippet)    
+    return snippet
+
+def filter_exact_word_matches(
+    results: list[tuple],
+    query: str
+) -> list[tuple]:
+    """
+    Filter FTS results to only include exact word matches
+
+    """
+    if not results or not query:
+        return results
+
+    word_pattern = re.compile(r'\b' + re.escape(query.strip()) + r'\b', re.IGNORECASE)
+    filtered_results = []
+    for i, (uid, snippet, rank, transcript) in enumerate(results):
+        match = word_pattern.search(transcript)
+        if match:
+            filtered_results.append((uid, snippet, rank, transcript))
+     
+    return filtered_results
 
 def search_meetings(
     query: str,
@@ -356,11 +394,15 @@ def search_meetings(
     sort_by: str = "relevance",
     limit: int | None = None,
     offset: int = 0,
+    exact_match: bool = False
+    
 ) -> dict:
     """
     Search for meetings based on the query string.
     Returns a dict with 'results' (list of meeting details) and 'total' (total number of matches).
     """
+    sql_limit = None if exact_match else limit
+    sql_offset = None if exact_match else offset
 
     count_string, query_string, count_params, query_params = (
         build_count_and_query_string(
@@ -369,14 +411,29 @@ def search_meetings(
             startdate=startdate,
             enddate=enddate,
             sort_by=sort_by,
-            limit=limit,
-            offset=offset,
+            limit=sql_limit,      
+            offset=sql_offset,    
+            exact_match=exact_match,
         )
     )
 
     with sqlite3.connect(DB_PATH) as conn:
         total = conn.execute(count_string, count_params).fetchone()[0]
         results = conn.execute(query_string, query_params).fetchall()
+
+        # Exact match filtering 
+        if exact_match:
+            results = filter_exact_word_matches(results, query)
+            results = [
+                (uid, generate_exact_snippet(transcript, query), rank, transcript)
+                for uid, snippet, rank, transcript in results
+            ]
+            total = len(results)
+
+            
+
+            if limit is not None:
+                results = results[offset:offset + limit]
 
         # To efficiently find the closest timestamp to the match snippet we remove the
         # brackets from the snippet and find the offset in the transcript
@@ -438,7 +495,6 @@ def search_meetings(
                 )
 
         return {"results": formatted_results, "total": total}
-
 
 def get_available_authorities_and_providers() -> list[tuple[str, str, dict | None]]:
     """

@@ -21,7 +21,7 @@ export default createVuetify({
     defaultSet: 'mdi',
     aliases: {
       ...aliases,
-      mdiVideo: mdiVideo,
+      mdiVideo,
     },
     sets: {
       mdi,

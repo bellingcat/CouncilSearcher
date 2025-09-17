@@ -2,3 +2,10 @@ data/
 *.ipynb
 secrets
 letsencrypt
+
+
+venv/
+
+council-searcher/.env.development
+*.local.yaml
+project_notes.md
