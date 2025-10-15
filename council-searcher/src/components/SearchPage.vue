@@ -283,6 +283,7 @@ const filteredAuthorities = computed(() => {
 
 const fetchAuthorities = async () => {
     try {
+        
         const response = await axios.get(
             API_BASE + "/meetings/transcript_counts_by_authority"
         );
