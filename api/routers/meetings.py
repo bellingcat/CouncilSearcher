@@ -12,6 +12,13 @@ from api.db import meetings
 from api.providers.provider import Provider
 from api.routers.auth import active_user, admin_user
 
+
+
+from fastapi import Query
+from fastapi.responses import StreamingResponse
+import io
+import csv
+
 scheduler = AsyncIOScheduler()
 
 
@@ -200,3 +207,49 @@ async def trigger_load_meetings(
     background_tasks.add_task(load_meetings, update)
 
     return JSONResponse(content={"message": "Job submitted."})
+
+@router.get("/meetings/download_csv", tags=["meetings"])
+async def download_search_results_csv(
+    query: str,
+    authority: Union[list[str], None] = Query(None),
+    startdate: Union[str, None] = None,
+    enddate: Union[str, None] = None,
+    sort_by: Literal["relevance", "date_asc", "date_desc"] = "relevance"
+) -> StreamingResponse:
+    """
+    Download search results as CSV file.
+    Returns all matching results (no pagination).
+    """
+
+    search_results = meetings.search_meetings(
+        query=query,
+        authority=authority,
+        startdate=startdate,
+        enddate=enddate,
+        sort_by=sort_by,
+        limit=None, 
+        offset=0
+    )
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header and data rows
+    writer.writerow(['Title', 'Authority', 'Meeting Date & Time', 'Snippet Timestamp', 'Snippet', 'Link'])
+    for result in search_results['results']:
+        writer.writerow([
+            result['title'],
+            result['authority'].title(),
+            result['datetime'],
+            result['start_time'],
+            result['snippet'].replace('[', '').replace(']', ''),
+            result['link']
+        ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv"
+    )
+

@@ -5,6 +5,8 @@ import sqlite3
 
 from api.models.meetings import MeetingItem
 
+
+
 DB_PATH = DB_PATH = (
     Path(__file__).parent.parent / "data" / "council_meetings.db"
 ).resolve()
@@ -486,3 +488,7 @@ def add_authority(
         """,
             (authority_id, provider_id, nice_name),
         )
+
+
+
+
