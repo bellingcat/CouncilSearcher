@@ -2,3 +2,6 @@ data/
 *.ipynb
 secrets
 letsencrypt
+venv/
+*.local.yaml
+project_notes.md
