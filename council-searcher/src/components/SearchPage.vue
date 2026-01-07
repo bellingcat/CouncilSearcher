@@ -197,6 +197,17 @@
                     </p>
                 </v-col>
                 <v-spacer />
+            <v-col class="ma-0 pa-0 align-result-heading" cols="auto" v-if="totalResults">
+                <v-btn
+                    style="border-color: rgba(255, 255, 255, 0.7); color: rgba(255, 255, 255, 0.7);"
+                    variant="outlined"
+                    @click="downloadResults"
+                    :loading="downloadingCsv"
+                    class="mr-2"        
+                >
+                    Export to CSV
+                </v-btn>
+            </v-col>                
                 <v-col class="ma-0 pa-0 align-result-heading" cols="auto">
                     <v-select
                         v-model="sortOption"
@@ -281,6 +292,7 @@ function formatAsIso (date) {
   return adapter.toISO(date);
 }
 
+const downloadingCsv = ref(false);
 const authorityFilter = ref("");
 const loadingAuthorities = ref(true);
 const errorLoadingAuthorities = ref(false);
@@ -392,6 +404,58 @@ async function pageAndSearch() {
 
     performSearch();
 }
+
+
+const downloadResults = async () => {
+    downloadingCsv.value = true;
+    try {
+        const authorityParams = selectedAuthorities.value
+            .map((authority) => `authority=${encodeURIComponent(authority)}`)
+            .join("&");
+        const dateParams = [
+            startDate.value
+                ? `startdate=${encodeURIComponent(
+                      formatAsIso(startDate.value)
+                  )}`
+                : "",
+            endDate.value
+                ? `enddate=${encodeURIComponent(formatAsIso(endDate.value))}`
+                : "",
+        ]
+            .filter(Boolean)
+            .join("&");
+        const sortByParam = `sort_by=${getSortByParam()}`;
+        const queryParams = `query=${encodeURIComponent(searchQuery.value)}${
+            authorityParams ? `&${authorityParams}` : ""
+        }${dateParams ? `&${dateParams}` : ""}&${sortByParam}`;
+        
+        const response = await axios.get(
+            API_BASE + `/meetings/download_csv?${queryParams}`,
+            { responseType: 'blob' }
+        );
+
+        //Format filename string
+        let query = searchQuery.value.replace(/[^a-zA-Z0-9\s-_]/g, '').trim().replace(/\s+/g, '-');
+        query = query.split('-').slice(0, 3).join('-');
+
+        const filename = `${query}-search-results.csv`;
+
+        // Create download link and trigger
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error downloading CSV:", error);
+        alert("Failed to download CSV. Please try again.");
+    } finally {
+        downloadingCsv.value = false;
+    }
+};
 
 fetchAuthorities();
 </script>
