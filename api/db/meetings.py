@@ -428,6 +428,7 @@ def search_meetings(
                 meeting_link = f"{link}/start_time/{1000*start_time_seconds}"
                 formatted_results.append(
                     {
+                        "uid": uid, 
                         "title": title,
                         "datetime": datetime,
                         "unixtime": unixtime,
@@ -473,7 +474,6 @@ def add_provider(provider_id: str, config: dict | None = None) -> None:
             (provider_id, config_json),
         )
 
-
 def add_authority(
     authority_id: str, provider_id: str, nice_name: str | None = None
 ) -> None:
@@ -489,6 +489,46 @@ def add_authority(
             (authority_id, provider_id, nice_name),
         )
 
-
-
-
+def get_full_transcript(uid: str) -> dict | None:
+    """
+    Get the full transcript for a specific meeting.
+    Returns dict with transcript text and meeting metadata, or None if not found.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        # Get meeting metadata
+        meeting = conn.execute(
+            """
+            SELECT title, datetime, authority
+            FROM meetings
+            WHERE uid = ?
+            """,
+            (uid,)
+        ).fetchone()
+        
+        if not meeting:
+            return None
+        
+        # Get all transcript segments ordered by start_time
+        transcript_segments = conn.execute(
+            """
+            SELECT transcript
+            FROM transcripts
+            WHERE uid = ?
+            ORDER BY start_time
+            """,
+            (uid,)
+        ).fetchall()
+        
+        if not transcript_segments:
+            return None
+        
+        # Concatenate all segments
+        full_transcript = "\n\n".join(segment[0] for segment in transcript_segments)
+        
+        return {
+            "uid": uid,
+            "title": meeting[0],
+            "datetime": meeting[1],
+            "authority": meeting[2],
+            "transcript": full_transcript
+        }

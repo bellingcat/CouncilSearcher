@@ -4,13 +4,15 @@ from typing import Literal, Union
 
 # Third-party libraries
 from fastapi import APIRouter, FastAPI, Query, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Local application imports
 from api.db import meetings
 from api.providers.provider import Provider
 from api.routers.auth import active_user, admin_user
+import io
+import csv
 
 
 
@@ -208,6 +210,7 @@ async def trigger_load_meetings(
 
     return JSONResponse(content={"message": "Job submitted."})
 
+  
 @router.get("/meetings/download_csv", tags=["meetings"])
 async def download_search_results_csv(
     query: str,
@@ -247,9 +250,38 @@ async def download_search_results_csv(
         ])
     
     output.seek(0)
-    
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv"
+    )
+
+
+@router.get("/meetings/download_transcript/{uid}", tags=["meetings"])
+async def download_transcript(uid: str) -> StreamingResponse:
+    """
+    Download the full transcript for a specified meeting as .txt file
+    """
+    transcript_data = meetings.get_full_transcript(uid)
+    
+    if not transcript_data:
+        return JSONResponse(
+            content={"error": "Transcript not found"},
+            status_code=404
+        )
+    
+    # Add transcript info to header
+    output = io.StringIO()
+    output.write(f"Meeting: {transcript_data['title']}\n")
+    output.write(f"Authority: {transcript_data['authority'].title()}\n")
+    output.write(f"Date: {transcript_data['datetime']}\n")
+    output.write(f"\n{'='*80}\n\n")
+    output.write(transcript_data['transcript'])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/plain"
     )
 

@@ -11,7 +11,7 @@ import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi-svg'
 import { mdiVideo,mdiDownload } from '@mdi/js'
-  
+
 // Labs
 import { VDateInput } from 'vuetify/labs/VDateInput'
 
