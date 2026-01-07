@@ -43,19 +43,19 @@ import axios from 'axios';
 const API_BASE = import.meta.env.VITE_API_BASEURL;
 export default {
     props: {
-        result: {
-            type: Object,
-            required: true,
-        },
+      result: {
+        type: Object,
+        required: true,
+      },
     },
     computed: {
-        highlightedSnippet() {
-            // Use a regular expression to find text within square brackets
-            return this.result.snippet.replace(
-                /\[(.*?)\]/g,
-                '<span class="highlight">$1</span>'
-            );
-        },
+      highlightedSnippet () {
+        // Use a regular expression to find text within square brackets
+        return this.result.snippet.replace(
+          /\[(.*?)\]/g,
+          '<span class="highlight">$1</span>'
+        );
+      },
     },
     methods: {
 
